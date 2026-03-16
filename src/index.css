@@ -1,0 +1,23 @@
+/* Tailwind CSS v4 setup */
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'DM Sans', 'Sora', sans-serif;
+  --color-brand-navy: #000000;   /* Text color to Black */
+  --color-brand-orange: #FF5900; /* Store brand orange for sidebar */
+  --color-brand-teal: #FF8237;
+  --color-brand-highlight: #FFAA6E;
+  --color-brand-bg: #FFFFFF;     /* Background to White */
+  --color-brand-card: #FFFFFF;
+  --color-status-green: #10B981;
+  --color-status-red: #EF4444;
+  --color-status-amber: #F59E0B;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-brand-bg);
+    color: #000000;
+    font-family: var(--font-sans);
+  }
+}
