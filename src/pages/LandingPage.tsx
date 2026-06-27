@@ -7,7 +7,6 @@ import { sendEmail } from '../lib/resend';
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setMockUser } = useAuth();
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [isAnnual, setIsAnnual] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -28,6 +27,8 @@ const LandingPage: React.FC = () => {
     phone: '',
     offerLetter: null as File | null
   });
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -62,104 +63,50 @@ const LandingPage: React.FC = () => {
     document.body.style.overflow = '';
   };
 
-  // Initialize default demo credentials
-  useEffect(() => {
-    const existingStr = localStorage.getItem('hr_employee_credentials');
-    const demoUsers = [
-      {
-        employeeId: 'VYR-2024-001',
-        password: 'Welcome@2024',
-        email: 'mike@example.com',
-        full_name: 'Michael Scott',
-        role: 'employee'
-      },
-      {
-        employeeId: 'VYR-2024-009',
-        password: 'Welcome@2024',
-        email: 'angela@example.com',
-        full_name: 'Angela Martin',
-        role: 'employee'
-      },
-      {
-        employeeId: 'VYR-2026-001',
-        password: 'Welcome@2024',
-        email: 'john.doe@example.com',
-        full_name: 'John Doe',
-        role: 'employee'
-      }
-    ];
-
-    if (!existingStr) {
-      localStorage.setItem('hr_employee_credentials', JSON.stringify(demoUsers));
-    } else {
-      // Merge if missing
-      try {
-        const existing = JSON.parse(existingStr);
-        const updated = [...existing];
-        let changed = false;
-        demoUsers.forEach(demo => {
-          if (!existing.some((u: any) => u.employeeId === demo.employeeId)) {
-            updated.push(demo);
-            changed = true;
-          }
-        });
-        if (changed) {
-          localStorage.setItem('hr_employee_credentials', JSON.stringify(updated));
-        }
-      } catch (e) {
-        localStorage.setItem('hr_employee_credentials', JSON.stringify(demoUsers));
-      }
-    }
-  }, []);
-
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    // Clear any existing mock session BEFORE signing into Supabase
-    // to ensure AuthContext doesn't ignore the new real session
-    localStorage.removeItem('mock_hr_session');
+    try {
+      // Enforce strict Supabase Auth
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
-      return;
-    }
-
-
-    // Check if role is admin and trial status
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, expires_at')
-      .eq('id', data.user?.id)
-      .single();
-
-    if (profile?.role !== 'admin') {
-      await supabase.auth.signOut();
-      setError('Access denied. This account does not have administrator privileges.');
-      setLoading(false);
-      return;
-    }
-
-    // Check trial expiration
-    if (profile?.expires_at) {
-      const expirationDate = new Date(profile.expires_at);
-      if (expirationDate < new Date()) {
-        await supabase.auth.signOut();
-        setError('Your 10-day free trial has expired. Please contact sales to upgrade your plan.');
+      if (authError) {
+        setError(authError.message);
         setLoading(false);
         return;
       }
-    }
 
-    navigate('/dashboard');
-    closeModals();
+      // Fetch profile from database to verify role
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user?.id)
+        .single();
+
+      if (profileError || !profile || profile.role !== 'admin') {
+        // If the profile exists and is NOT admin, deny access.
+        // If it doesn't exist yet, we allow login since AuthContext fetchProfile will auto-create it.
+        if (profile && profile.role !== 'admin') {
+          await supabase.auth.signOut();
+          setError('Access denied. This account is an employee, please use the Employee Portal.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      navigate('/dashboard');
+      closeModals();
+    } catch (err: any) {
+      console.error('Login system error:', err);
+      setError(err.message || 'An error occurred during authentication.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEmployeeLogin = async (e: React.FormEvent) => {
@@ -167,73 +114,80 @@ const LandingPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    // 1. First check local storage and hardcoded defaults for demo users
-    const demoUsers = [
-      { employeeId: 'VYR-2024-001', password: 'Welcome@2024', full_name: 'Michael Scott', email: 'mike@example.com' },
-      { employeeId: 'VYR-2024-009', password: 'Welcome@2024', full_name: 'Angela Martin', email: 'angela@example.com' },
-      { employeeId: 'VYR-2026-001', password: 'Welcome@2024', full_name: 'John Doe', email: 'john.doe@example.com' }
-    ];
+    try {
+      let targetEmail = employeeEmail.trim();
 
-    const storedCredentials = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
-    const allCreds = [...demoUsers, ...storedCredentials];
+      // 1. Try to find the email in localStorage (ideal for local testing)
+      const localCreds = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
+      const foundLocal = localCreds.find((c: any) => c.employeeId === targetEmail);
 
-    const mockMatch = allCreds.find((c: any) => 
-      (c.employeeId === employeeEmail.trim() || c.email === employeeEmail.trim()) && 
-      c.password === password.trim()
-    );
+      if (foundLocal && foundLocal.email) {
+        targetEmail = foundLocal.email;
+      } else {
+        // 2. Query database to resolve Employee ID to Email (fallback)
+        const { data: dbProfile, error: dbError } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('employee_id', targetEmail)
+          .maybeSingle();
 
-    if (mockMatch) {
-      await setMockUser({
-        ...mockMatch,
-        id: mockMatch.employeeId, // Use Emp ID as unique identifier
-        full_name: mockMatch.full_name,
-        role: 'employee'
+        if (dbError) {
+          console.error('Database query error:', dbError);
+        }
+
+        if (dbProfile?.email) {
+          targetEmail = dbProfile.email;
+        } else {
+          // If the targetEmail doesn't contain '@', then it's an employee ID that wasn't found.
+          if (!targetEmail.includes('@')) {
+            setError('No employee account found with this ID.');
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      // Perform strict Supabase Auth sign-in
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: targetEmail,
+        password,
       });
+
+      if (authError) {
+        setError('Invalid credentials or authentication failed.');
+        setLoading(false);
+        return;
+      }
+
+      // Verify that the logged in user is actually an employee
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', authData.user?.id)
+        .single();
+
+      if (profileError || !profile) {
+        await supabase.auth.signOut();
+        setError('Employee profile not found. Please contact your administrator.');
+        setLoading(false);
+        return;
+      }
+
+      if (profile.role !== 'employee') {
+        await supabase.auth.signOut();
+        setError('Access denied. Please use the Admin Login for administrator accounts.');
+        setLoading(false);
+        return;
+      }
+
       navigate('/dashboard');
       closeModals();
+    } catch (err: any) {
+      console.error('Employee login system error:', err);
+      setError(err.message || 'An error occurred during employee authentication.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // 2. Fallback to Supabase Auth if not in mock storage
-    // Clear mock session first to ensure real session is recognized
-    localStorage.removeItem('mock_hr_session');
-    
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: employeeEmail,
-      password,
-    });
-
-    if (authError) {
-      setError('Invalid email, employee ID or password. Please try again.');
-      setLoading(false);
-      return;
-    }
-
-    // Verify this account is an employee (not admin) in Supabase
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', data.user?.id)
-      .single();
-
-    if (profileError || !profile) {
-      await supabase.auth.signOut();
-      setError('Account not found. Contact your administrator.');
-      setLoading(false);
-      return;
-    }
-
-    if (profile.role !== 'employee') {
-      await supabase.auth.signOut();
-      setError('Access denied. Please use the Admin login for administrator accounts.');
-      setLoading(false);
-      return;
-    }
-
-    navigate('/dashboard');
-    closeModals();
-    setLoading(false);
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
@@ -310,22 +264,52 @@ const LandingPage: React.FC = () => {
   return (
     <div className="landing-body">
       {/* ===== NAVBAR ===== */}
-      <nav id="navbar" style={{ background: scrolled ? 'rgba(10,22,40,0.97)' : 'rgba(10,22,40,0.85)' }}>
-        <a href="#" className="nav-logo">
-          <img src="/logo.png" alt="VyaraHR" className="h-10 w-auto" />
+      <nav className={`${scrolled ? 'scrolled' : ''} ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+        <a href="#" className="nav-logo" onClick={() => setIsMobileMenuOpen(false)}>
+          <img src="/logo.png" alt="VyaraHR" className="nav-logo-img" />
         </a>
+
+        {/* Desktop Links */}
         <ul className="nav-links">
           <li><a href="#products">Products</a></li>
           <li><a href="#customers">Customers</a></li>
           <li><a href="#pricing">Pricing</a></li>
           <li><a href="#about">About</a></li>
         </ul>
+
+        {/* Desktop CTA */}
         <div className="nav-cta">
           <button className="btn-ghost" onClick={() => openModal('signupModal')}>Sign Up</button>
           <button className="btn-ghost" onClick={() => openModal('selectorModal')}>Log In</button>
           <button className="btn-primary" onClick={() => openModal('signupModal')}>Get Started Free</button>
         </div>
+
+        {/* Mobile Hamburger */}
+        <button 
+          className={`hamburger ${isMobileMenuOpen ? 'open' : ''}`} 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Toggle Menu"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
       </nav>
+      
+      {/* Mobile Slide-down Menu */}
+      <div className={`mobile-menu ${isMobileMenuOpen ? 'active' : ''}`}>
+        <ul className="mobile-nav-links">
+          <li><a href="#products" onClick={() => setIsMobileMenuOpen(false)}>Products</a></li>
+          <li><a href="#customers" onClick={() => setIsMobileMenuOpen(false)}>Customers</a></li>
+          <li><a href="#pricing" onClick={() => setIsMobileMenuOpen(false)}>Pricing</a></li>
+          <li><a href="#about" onClick={() => setIsMobileMenuOpen(false)}>About</a></li>
+        </ul>
+        <div className="mobile-nav-cta">
+          <button className="btn-primary w-full" onClick={() => { setIsMobileMenuOpen(false); openModal('signupModal'); }}>Start Free Trial</button>
+          <button className="btn-ghost w-full" onClick={() => { setIsMobileMenuOpen(false); openModal('selectorModal'); }}>Sign In</button>
+        </div>
+      </div>
 
       {/* ===== HERO ===== */}
       <section className="hero" id="home">
@@ -333,7 +317,7 @@ const LandingPage: React.FC = () => {
         <div className="hero-glow2"></div>
 
         <div className="hero-content">
-          <div className="hero-badge">🚀 Leading HR Management Solution</div>
+          <div className="hero-badge">Leading HR Management Solution</div>
           <h1>HR Management<br />Made <span className="highlight">Effortlessly</span><br />Powerful</h1>
           <p>VyaraHR brings hiring, onboarding, payroll, performance, and team management into one seamless platform — built for modern businesses.</p>
           <div className="hero-btns">
@@ -372,10 +356,10 @@ const LandingPage: React.FC = () => {
             </div>
             <div className="mock-bar-section">
               <div className="mock-bar-title">Department Performance</div>
-              <div className="mock-bar-row"><span className="mock-bar-name">Development</span><div className="mock-bar-track"><div className="mock-bar-fill" style={{ width: '88%' }}></div></div><span className="mock-bar-pct">88%</span></div>
-              <div className="mock-bar-row"><span className="mock-bar-name">Marketing</span><div className="mock-bar-track"><div className="mock-bar-fill orange" style={{ width: '72%' }}></div></div><span className="mock-bar-pct">72%</span></div>
-              <div className="mock-bar-row"><span className="mock-bar-name">Sales</span><div className="mock-bar-track"><div className="mock-bar-fill" style={{ width: '65%' }}></div></div><span className="mock-bar-pct">65%</span></div>
-              <div className="mock-bar-row"><span className="mock-bar-name">Testing</span><div className="mock-bar-track"><div className="mock-bar-fill orange" style={{ width: '91%' }}></div></div><span className="mock-bar-pct">91%</span></div>
+              <div className="mock-bar-row"><span className="mock-bar-name">Development</span><div className="mock-bar-track"><div className="mock-bar-fill w-88pct"></div></div><span className="mock-bar-pct">88%</span></div>
+              <div className="mock-bar-row"><span className="mock-bar-name">Marketing</span><div className="mock-bar-track"><div className="mock-bar-fill orange w-72pct"></div></div><span className="mock-bar-pct">72%</span></div>
+              <div className="mock-bar-row"><span className="mock-bar-name">Sales</span><div className="mock-bar-track"><div className="mock-bar-fill w-65pct"></div></div><span className="mock-bar-pct">65%</span></div>
+              <div className="mock-bar-row"><span className="mock-bar-name">Testing</span><div className="mock-bar-track"><div className="mock-bar-fill orange w-91pct"></div></div><span className="mock-bar-pct">91%</span></div>
             </div>
           </div>
         </div>
@@ -384,13 +368,12 @@ const LandingPage: React.FC = () => {
       {/* ===== PRODUCTS ===== */}
       <section id="products">
         <div className="reveal">
-          <div className="section-label">⚡ Products</div>
+          <div className="section-label">Products</div>
           <h2 className="section-title">Everything your HR team<br />needs, built in</h2>
           <p className="section-sub">From hiring to retirement — VyaraHR covers every touchpoint of your employee lifecycle in one intelligent platform.</p>
         </div>
         <div className="products-grid">
           <div className="product-card reveal">
-            <div className="product-icon">🎯</div>
             <div className="product-name">Smart Dashboard</div>
             <div className="product-desc">Real-time company pulse — attendance, leaves, remote workers, and team status at a single glance.</div>
             <ul className="product-features">
@@ -400,7 +383,6 @@ const LandingPage: React.FC = () => {
             </ul>
           </div>
           <div className="product-card reveal">
-            <div className="product-icon">🤖</div>
             <div className="product-name">AI-Powered Hiring</div>
             <div className="product-desc">From job posting to offer letter — our ATS AI shortlists resumes automatically.</div>
             <ul className="product-features">
@@ -410,7 +392,6 @@ const LandingPage: React.FC = () => {
             </ul>
           </div>
           <div className="product-card reveal">
-            <div className="product-icon">🚀</div>
             <div className="product-name">Onboarding & Offboarding</div>
             <div className="product-desc">Create employee IDs, generate offer letters, and manage smooth exits.</div>
             <ul className="product-features">
@@ -425,7 +406,7 @@ const LandingPage: React.FC = () => {
       {/* ===== CUSTOMERS ===== */}
       <section id="customers">
         <div className="customers-header reveal">
-          <div className="section-label">💎 Customers</div>
+          <div className="section-label">Customers</div>
           <h2 className="section-title">Fueling the world's most<br />ambitious Companies</h2>
         </div>
         <div className="logos-strip reveal">
@@ -445,7 +426,7 @@ const LandingPage: React.FC = () => {
               <div className="stars">★★★★★</div>
               <p className="testimonial-text">"{t.text}"</p>
               <div className="testimonial-author">
-                <div className="author-avatar" style={{ background: i === 0 ? '#00C2B2' : i === 1 ? '#FF6B35' : '#0A1628', color: 'white' }}>{t.name[0]}</div>
+                <div className={`author-avatar testimonial-bg-${i}`}>{t.name[0]}</div>
                 <div>
                   <div className="author-name">{t.name}</div>
                   <div className="author-role">{t.role}</div>
@@ -459,7 +440,7 @@ const LandingPage: React.FC = () => {
       {/* ===== PRICING ===== */}
       <section id="pricing">
         <div className="pricing-header reveal">
-          <div className="section-label">💰 Pricing</div>
+          <div className="section-label">Pricing</div>
           <h2 className="section-title">Simple scaling, no surprises</h2>
           <div className="pricing-toggle">
             <span>Billed Monthly</span>
@@ -517,7 +498,7 @@ const LandingPage: React.FC = () => {
       {/* ===== ABOUT ===== */}
       <section id="about">
         <div className="reveal">
-          <div className="section-label">💙 About Us</div>
+          <div className="section-label">About Us</div>
           <h2 className="section-title">Human-first design for<br />modern workforce</h2>
           <p className="section-sub">At VyaraHR, we believe HR should be a catalyst for growth, not a source of paperwork. Our mission is to automate the mundane so you can focus on your most valuable asset: your people.</p>
           <div className="about-values">
@@ -538,7 +519,7 @@ const LandingPage: React.FC = () => {
             <div className="about-team-grid">
               {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                 <div key={i} className="team-member">
-                  <div className="team-avatar" style={{ background: i % 2 === 0 ? 'var(--teal)' : 'var(--accent)', color: 'var(--navy)' }}>{String.fromCharCode(64 + i)}</div>
+                  <div className={`team-avatar ${i % 2 === 0 ? 'team-bg-even' : 'team-bg-odd'}`}>{String.fromCharCode(64 + i)}</div>
                   <div className="team-name">Member {i}</div>
                 </div>
               ))}
@@ -567,7 +548,7 @@ const LandingPage: React.FC = () => {
         <div className="footer-grid">
           <div className="footer-brand">
             <a href="#" className="nav-logo">Vyara<span>HR</span></a>
-            <p className="footer-tagline">Modern HR management for growing businesses. Built with ❤️ in Coimbatore, Tamil Nadu.</p>
+            <p className="footer-tagline">Modern HR management for growing businesses. Built in Coimbatore, Tamil Nadu.</p>
             <div className="footer-socials">
               <button className="social-btn">in</button>
               <button className="social-btn">tw</button>
@@ -612,16 +593,14 @@ const LandingPage: React.FC = () => {
           <div className="modal-logo">
             <img src="/logo.png" alt="VyaraHR" />
           </div>
-          <h2 style={{ fontFamily: 'Clash Display,sans-serif', fontSize: '1.6rem', fontWeight: 700, marginBottom: '6px' }}>Welcome Back</h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '28px' }}>Select your account type to continue</p>
+          <h2 className="modal-welcome-title">Welcome Back</h2>
+          <p className="modal-subtitle">Select your account type to continue</p>
           <div className="login-selector">
             <div className="login-option" onClick={() => openModal('adminModal')}>
-              <div className="opt-icon">🛡️</div>
               <div className="opt-label">Admin</div>
               <div className="opt-sub">Company administrator access</div>
             </div>
             <div className="login-option" onClick={() => openModal('employeeModal')}>
-              <div className="opt-icon">👤</div>
               <div className="opt-label">Employee</div>
               <div className="opt-sub">Personal employee portal</div>
             </div>
@@ -636,12 +615,12 @@ const LandingPage: React.FC = () => {
           <div className="modal-logo">
             <img src="/logo.png" alt="VyaraHR" />
           </div>
-          <div className="modal-role-badge admin">🛡️ Admin Login</div>
+          <div className="modal-role-badge admin">Admin Login</div>
           <h2>Admin Portal</h2>
           <p className="modal-subtitle">Sign in with your administrator credentials</p>
           
           <form onSubmit={handleAdminLogin}>
-            {error && <div className="error-message" style={{ color: '#ff6b35', fontSize: '0.85rem', marginBottom: '16px', textAlign: 'center' }}>{error}</div>}
+            {error && <div className="error-message error-msg-admin">{error}</div>}
             <div className="form-group">
               <label className="form-label">Company Email</label>
               <input 
@@ -669,8 +648,8 @@ const LandingPage: React.FC = () => {
             </button>
           </form>
           
-          <div className="modal-switch" style={{ marginTop: '20px' }}>Not an admin? <a href="#" onClick={() => openModal('employeeModal')}>Login as Employee</a></div>
-          <div className="modal-switch" style={{ marginTop: '10px' }}><a href="#" onClick={() => openModal('selectorModal')}>← Back</a></div>
+          <div className="modal-switch mt-20">Not an admin? <a href="#" onClick={() => openModal('employeeModal')}>Login as Employee</a></div>
+          <div className="modal-switch mt-10"><a href="#" onClick={() => openModal('selectorModal')}>← Back</a></div>
         </div>
       </div>
 
@@ -681,12 +660,12 @@ const LandingPage: React.FC = () => {
           <div className="modal-logo">
             <img src="/logo.png" alt="VyaraHR" />
           </div>
-          <div className="modal-role-badge employee">👤 Employee Login</div>
+          <div className="modal-role-badge employee">Employee Login</div>
           <h2>Employee Portal</h2>
           <p className="modal-subtitle">Sign in using your company email/ID and password</p>
           
           <form onSubmit={handleEmployeeLogin}>
-            {error && <div className="error-message" style={{ color: '#e74c3c', fontSize: '0.85rem', marginBottom: '16px', textAlign: 'center', background: '#fdf0f0', padding: '10px', borderRadius: '8px', border: '1px solid #fce0e0' }}>{error}</div>}
+            {error && <div className="error-message error-msg-employee">{error}</div>}
             <div className="form-group">
               <label className="form-label">Work Email / Employee ID</label>
               <input 
@@ -716,14 +695,14 @@ const LandingPage: React.FC = () => {
             </button>
           </form>
 
-          <div className="modal-switch" style={{ marginTop: '20px' }}>Are you an admin? <a href="#" onClick={() => openModal('adminModal')}>Login as Admin</a></div>
-          <div className="modal-switch" style={{ marginTop: '10px' }}><a href="#" onClick={() => openModal('selectorModal')}>← Back</a></div>
+          <div className="modal-switch mt-20">Are you an admin? <a href="#" onClick={() => openModal('adminModal')}>Login as Admin</a></div>
+          <div className="modal-switch mt-10"><a href="#" onClick={() => openModal('selectorModal')}>← Back</a></div>
         </div>
       </div>
 
       {/* ===== SIGNUP MODAL (HR REGISTRATION) ===== */}
       <div className={`modal-overlay ${activeModal === 'signupModal' ? 'open' : ''}`} onClick={(e) => e.target === e.currentTarget && closeModals()}>
-        <div className="modal" style={{ maxWidth: '500px' }}>
+        <div className="modal modal-lg">
           <button className="modal-close" onClick={closeModals}>✕</button>
           <div className="modal-logo">
             <img src="/logo.png" alt="VyaraHR" />
@@ -744,12 +723,12 @@ const LandingPage: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="modal-role-badge admin">🏢 HR Signup</div>
+              <div className="modal-role-badge admin">HR Signup</div>
               <h2>Create Admin Account</h2>
               <p className="modal-subtitle">Register your organization to start your free trial</p>
               
               <form onSubmit={handleSignupSubmit}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="grid-2col">
                   <div className="form-group">
                     <label className="form-label">Full Name</label>
                     <input 
@@ -801,10 +780,13 @@ const LandingPage: React.FC = () => {
 
                 <div className="form-group">
                   <label className="form-label">Offer Letter (Verification as HR)</label>
-                  <div style={{ position: 'relative' }}>
+                  <div className="relative-container">
                     <input 
                       type="file" 
-                      style={{ opacity: 0, position: 'absolute', inset: 0, cursor: 'pointer', zIndex: 10 }} 
+                      className="file-input-hidden"
+                      title="Upload Offer Letter"
+                      aria-label="Upload Offer Letter"
+                      placeholder="Upload Offer Letter"
                       accept=".pdf,.jpg,.jpeg,.png"
                       required
                       onChange={(e) => {
@@ -813,22 +795,22 @@ const LandingPage: React.FC = () => {
                         }
                       }}
                     />
-                    <div className="form-input" style={{ display: 'flex', alignItems: 'center', justifyContent: 'between' }}>
-                      <span style={{ color: signupData.offerLetter ? 'white' : 'rgba(255,255,255,0.25)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>
+                    <div className="form-input file-input-display">
+                      <span className={`file-name-text ${signupData.offerLetter ? 'has-file' : 'no-file'}`}>
                         {signupData.offerLetter ? signupData.offerLetter.name : 'Upload Offer Letter (PDF/Img)'}
                       </span>
-                      <span style={{ marginLeft: 'auto', color: 'var(--teal)' }}>📁</span>
+                      <span className="file-icon">📁</span>
                     </div>
                   </div>
                 </div>
 
 
-                <button className="modal-btn" type="submit" disabled={loading} style={{ marginTop: '20px' }}>
+                <button className="modal-btn mt-20" type="submit" disabled={loading}>
                   {loading ? 'Submitting...' : 'Register as Admin →'}
                 </button>
               </form>
 
-              <div className="modal-switch" style={{ marginTop: '20px' }}>
+              <div className="modal-switch mt-20">
                 Already have an account? <a href="#" onClick={() => openModal('selectorModal')}>Login</a>
               </div>
             </>

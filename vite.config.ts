@@ -7,5 +7,14 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
     include: ['recharts', 'react-is', 'jspdf']
+  },
+  server: {
+    proxy: {
+      '/api/resend': {
+        target: 'https://api.resend.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/resend/, '')
+      }
+    }
   }
 })

@@ -5,7 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { Users, UserCheck, UserMinus, Send, RefreshCw, Mail, Briefcase, Calendar, Clock, LogOut as OffboardIcon, Layout, Fingerprint, Search, Plus, X, Bell } from 'lucide-react';
+import { Users, UserCheck, UserMinus, Send, RefreshCw, Mail, Briefcase, Calendar, Clock, LogOut as OffboardIcon, Layout, Fingerprint, Search, Plus, X, Bell, Pencil, Trash2, Download } from 'lucide-react';
+import { getRelativeTime } from '../../lib/timeHelper';
 
 const Dashboard = () => {
   const { profile } = useAuth();
@@ -14,6 +15,7 @@ const Dashboard = () => {
     presentToday: 0,
     onLeave: 0
   });
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any>(null);
   const [absences, setAbsences] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -22,8 +24,21 @@ const Dashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [newUpdate, setNewUpdate] = useState({ title: '', message: '' });
+  const [editingAnnouncement, setEditingAnnouncement] = useState<any | null>(null);
+  const [refreshNotifyTrack, setRefreshNotifyTrack] = useState(0);
   const [submission, setSubmission] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    mobile: '',
+    dob: '',
+    address: '',
+    employeeId: '',
+    jobTitle: '',
+    joiningDate: '',
+    manager: '',
     bankAcc: '',
+    bankName: '',
     ifsc: '',
     pan: '',
     offerLetter: false,
@@ -37,6 +52,17 @@ const Dashboard = () => {
     degree: false,
     photo: false
   });
+  const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    fullName: '',
+    designation: '',
+    department: '',
+    grossSalary: '0',
+    bankName: '',
+    bankAccount: ''
+  });
+
 
   useEffect(() => {
     if (profile?.role === 'employee') {
@@ -59,13 +85,45 @@ const Dashboard = () => {
       offerLetter: true,
       aadhar: true,
       degree: true,
-      photo: true
+      photo: true,
+      submittedAt: new Date().toISOString()
     };
     
     localStorage.setItem('hr_employee_submissions', JSON.stringify(allSubmissions));
     setSubmission(allSubmissions[empId]);
     alert('Onboarding documents submitted successfully for review!');
   };
+
+  const handleSaveProfile = async () => {
+    if (!editingEmployee) return;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: editFormData.fullName,
+          designation: editFormData.designation,
+          department: editFormData.department,
+          gross_salary: editFormData.grossSalary,
+          bank_name: editFormData.bankName,
+          bank_account: editFormData.bankAccount
+        })
+        .eq('id', editingEmployee.id);
+
+      if (error) {
+        alert(`Failed to update profile: ${error.message}`);
+        return;
+      }
+
+      setEditingEmployee(null);
+      await fetchProfiles();
+      alert('Profile and salary updated successfully!');
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      alert('An error occurred. Please try again.');
+    }
+  };
+
 
   const handleFileChange = (docType: keyof typeof draftDocs) => {
     setDraftDocs(prev => ({ ...prev, [docType]: true }));
@@ -81,7 +139,7 @@ const Dashboard = () => {
       title: newUpdate.title,
       message: newUpdate.message,
       time: 'Just now',
-      admin_context: 'praveen12rangasamy@gmail.com'
+      admin_context: profile?.email || 'praveen12rangasamy@gmail.com'
     };
     
     notifications.unshift(notification);
@@ -89,14 +147,39 @@ const Dashboard = () => {
     
     setNewUpdate({ title: '', message: '' });
     setShowBroadcastModal(false);
+    setRefreshNotifyTrack(prev => prev + 1);
     alert('Update broadcasted to all employees! ✓');
   };
 
+  const handleDeleteAnnouncement = (id: any) => {
+    const updated = JSON.parse(localStorage.getItem('hr_notifications') || '[]').filter((a: any) => a.id !== id);
+    localStorage.setItem('hr_notifications', JSON.stringify(updated));
+    setRefreshNotifyTrack(prev => prev + 1);
+  };
+
+  const handleEditAnnouncementSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const title = formData.get('editTitle') as string;
+    const message = formData.get('editMessage') as string;
+    
+    const allNotifications = JSON.parse(localStorage.getItem('hr_notifications') || '[]');
+    const updated = allNotifications.map((a: any) => 
+      a.id === editingAnnouncement.id ? { ...a, title, message } : a
+    );
+    
+    localStorage.setItem('hr_notifications', JSON.stringify(updated));
+    setEditingAnnouncement(null);
+    setRefreshNotifyTrack(prev => prev + 1);
+  };
+
   useEffect(() => {
+    // Immediate fetch on mount to ensure no empty screen
+    fetchAllData();
+    
     if (profile?.role === 'admin') {
-      fetchAllData();
-    } else {
-      fetchEmployeeData();
+      const interval = setInterval(fetchAllData, 10000);
+      return () => clearInterval(interval);
     }
   }, [profile]);
 
@@ -130,39 +213,118 @@ const Dashboard = () => {
     ]);
     setLoading(false);
   };
-
-  const fetchProfiles = async () => {
-    try {
-      const { data, error } = await supabase.from('profiles').select('*');
-      let allProfiles = data || [];
-
-      const mockCreds = localStorage.getItem('hr_employee_credentials');
-      if (mockCreds) {
-        const parsed = JSON.parse(mockCreds);
-        const mockProfiles = parsed.map((creds: any) => ({
-          id: creds.employeeId,
-          employee_id: creds.employeeId,
-          full_name: creds.full_name,
-          email: creds.email,
-          role: 'employee',
-          designation: creds.role || 'New Hire',
-          organization_id: profile?.organization_id,
-          is_mock: true
-        }));
+    const fetchProfiles = async () => {
+      try {
+        setRefreshing(true);
+        // 1. Get database profiles
+        const { data: dbData, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('full_name', { ascending: true });
         
-        const supabaseEmails = new Set(allProfiles.map(p => p.email));
-        allProfiles = [...allProfiles, ...mockProfiles.filter((mp: any) => !supabaseEmails.has(mp.email))];
-      }
-      if (!error) setProfiles(allProfiles);
-    } catch (err) {
-      console.error('Error fetching profiles:', err);
-    }
-  };
+        const dbProfiles = (dbData || []).filter(p => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com');
 
-  const handleSync = async () => {
+        // 2. Get local applicants in onboarding pipeline from localStorage
+        const localApplicants = JSON.parse(localStorage.getItem('hr_applicants') || '[]');
+        const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute'];
+        const localOnboarding = localApplicants
+          .filter((a: any) => a.status === 'OfferSent' || a.status === 'OnboardingInProgress')
+          .filter((a: any) => a.name && !mockOfficeNames.includes(a.name))
+          .map((a: any) => ({
+            id: a.db_id || a.id.toString(),
+            employee_id: a.empId || `VYR-2024-00${a.id}`,
+            full_name: a.name,
+            email: a.email,
+            role: 'employee',
+            designation: a.role,
+            department: 'Unassigned',
+            onboarding_status: a.status
+          }));
+
+        // 3. Unify and deduplicate by employee_id or email or id
+        const unified = [...localOnboarding, ...dbProfiles];
+        const empMap = new Map();
+        unified.forEach(emp => {
+          const key = emp.employee_id || emp.email || emp.id;
+          if (key) empMap.set(key, emp);
+        });
+        
+        const finalProfiles = Array.from(empMap.values());
+        setProfiles(finalProfiles);
+
+        // Update totalEmployees stat dynamically
+        setStats(prev => ({
+          ...prev,
+          totalEmployees: finalProfiles.length
+        }));
+      } catch (err) {
+        console.error('Error fetching profiles:', err);
+      } finally {
+        setRefreshing(false);
+      }
+    };
+
+
+   const handleSync = async () => {
     setRefreshing(true);
     await fetchAllData();
     setRefreshing(false);
+  };
+
+  const handleDownloadCSV = () => {
+    if (!profiles || profiles.length === 0) {
+      alert("No employees to download.");
+      return;
+    }
+
+    const headers = ["Employee ID", "Full Name", "Email", "Role", "Designation", "Onboarding Status"];
+    const rows = profiles.map(p => [
+      p.employee_id || p.id || '',
+      p.full_name || '',
+      p.email || '',
+      p.role || '',
+      p.designation || 'Staff',
+      p.onboarding_status || 'Completed'
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `vyarahr_employees_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const restoreOwnership = async () => {
+    setRefreshing(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ hired_by: 'praveen12rangasamy@gmail.com' })
+        .is('hired_by', null); // Fix only orphans
+      
+      const { error: error2 } = await supabase
+        .from('profiles')
+        .update({ hired_by: 'praveen12rangasamy@gmail.com' })
+        .neq('hired_by', 'praveen12rangasamy@gmail.com'); // Fix misassigned
+        
+      if (!error && !error2) {
+        alert('All employee records have been successfully restored under your account.');
+        fetchAllData();
+      }
+    } catch (err) {
+      console.error('Restore error:', err);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const fetchAbsences = async () => {
@@ -171,37 +333,14 @@ const Dashboard = () => {
       const { data, error } = await supabase
         .from('leave_requests')
         .select(`
-          type,
-          start_date,
-          end_date,
-          profiles (
-            full_name,
-            department
-          )
+          *,
+          profiles:user_id (full_name, designation)
         `)
         .eq('status', 'approved')
         .lte('start_date', today)
         .gte('end_date', today);
 
-      let allAbsences = data || [];
-
-      const mockLeaves = localStorage.getItem('hr_leave_requests');
-      if (mockLeaves) {
-        const parsed = JSON.parse(mockLeaves);
-        const approvedMocks = parsed.filter((l: any) => 
-          l.status === 'approved' && l.start_date <= today && l.end_date >= today
-        ).map((l: any) => ({
-          type: l.type,
-          start_date: l.start_date,
-          end_date: l.end_date,
-          profiles: {
-            full_name: l.name,
-            department: 'New Hire'
-          }
-        }));
-        allAbsences = [...allAbsences, ...approvedMocks];
-      }
-      if (!error) setAbsences(allAbsences);
+      if (!error) setAbsences(data || []);
     } catch (err) {
       console.error('Error fetching absences:', err);
     }
@@ -209,33 +348,37 @@ const Dashboard = () => {
 
   const fetchStats = async () => {
     try {
-      const { count: realCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
       const today = new Date().toISOString().split('T')[0];
-      const { count: realPresent } = await supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('date', today).not('clock_in', 'is', null);
-      const { count: realLeave } = await supabase.from('leave_requests').select('*', { count: 'exact', head: true }).eq('status', 'approved').lte('start_date', today).gte('end_date', today);
+      
+      // Admin Dashboard should show stats for ALL employees (excluding admins)
+      const { data: adminProfiles } = await supabase
+        .from('profiles')
+        .select('id')
+        .neq('role', 'admin')
+        .neq('email', 'praveen12rangasamy@gmail.com');
+      
+      const employeeIds = adminProfiles?.map(p => p.id) || [];
+        
+      const { count: presentToday } = await supabase
+        .from('attendance')
+        .select('*', { count: 'exact', head: true })
+        .eq('date', today)
+        .in('user_id', employeeIds)
+        .not('clock_in', 'is', null);
+        
+      const { count: onLeave } = await supabase
+        .from('leave_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .in('user_id', employeeIds)
+        .lte('start_date', today)
+        .gte('end_date', today);
 
-      let totalEmployees = realCount || 0;
-      let presentToday = realPresent || 0;
-      let onLeave = realLeave || 0;
-
-      const mockCreds = localStorage.getItem('hr_employee_credentials');
-      if (mockCreds) {
-        totalEmployees += JSON.parse(mockCreds).length;
-      }
-
-      const mockLeaves = localStorage.getItem('hr_leave_requests');
-      if (mockLeaves) {
-        const activeMocks = JSON.parse(mockLeaves).filter((l: any) => 
-          l.status === 'approved' && l.start_date <= today && l.end_date >= today
-        ).length;
-        onLeave += activeMocks;
-      }
-
-      setStats({
-        totalEmployees,
-        presentToday,
-        onLeave
-      });
+      setStats(prev => ({
+        ...prev,
+        presentToday: presentToday || 0,
+        onLeave: onLeave || 0
+      }));
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
     }
@@ -244,9 +387,9 @@ const Dashboard = () => {
   if (profile?.role !== 'admin') {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
-        <header className="space-y-2">
-          <h2 className="text-3xl font-bold text-brand-navy">Welcome back, {profile?.full_name?.split(' ')[0] || 'Employee'}! 👋</h2>
-          <p className="text-gray-500">Here's what's happening in your workspace today.</p>
+        <header className="space-y-3">
+          <h2 className="text-3xl sm:text-5xl font-bold text-brand-navy tracking-tight">Welcome back, {profile?.full_name?.split(' ')[0] || 'Employee'}! 👋</h2>
+          <p className="text-base sm:text-lg text-gray-500">Here's what's happening in your workspace today.</p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -303,7 +446,7 @@ const Dashboard = () => {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="p-4 border rounded-xl space-y-3 bg-gray-50/50 hover:border-brand-teal/50 transition-colors">
-                    <label className="text-xs font-bold text-brand-navy uppercase flex items-center justify-between">
+                    <label htmlFor="upload-offer-letter" className="text-xs font-bold text-brand-navy uppercase flex items-center justify-between">
                       Offer Letter
                       {submission.offerLetter ? (
                         <Badge variant="green">Uploaded</Badge>
@@ -313,10 +456,10 @@ const Dashboard = () => {
                         <Badge variant="amber">Required</Badge>
                       )}
                     </label>
-                    <input type="file" className="w-full text-xs text-gray-400" onChange={() => handleFileChange('offerLetter')} />
+                    <input id="upload-offer-letter" type="file" className="w-full text-xs text-gray-400" onChange={() => handleFileChange('offerLetter')} />
                   </div>
                   <div className="p-4 border rounded-xl space-y-3 bg-gray-50/50 hover:border-brand-teal/50 transition-colors">
-                    <label className="text-xs font-bold text-brand-navy uppercase flex items-center justify-between">
+                    <label htmlFor="upload-aadhar" className="text-xs font-bold text-brand-navy uppercase flex items-center justify-between">
                       Aadhar Card
                       {submission.aadhar ? (
                         <Badge variant="green">Uploaded</Badge>
@@ -326,10 +469,10 @@ const Dashboard = () => {
                         <Badge variant="amber">Required</Badge>
                       )}
                     </label>
-                    <input type="file" className="w-full text-xs text-gray-400" onChange={() => handleFileChange('aadhar')} />
+                    <input id="upload-aadhar" type="file" className="w-full text-xs text-gray-400" onChange={() => handleFileChange('aadhar')} />
                   </div>
                   <div className="p-4 border rounded-xl space-y-3 bg-gray-50/50 hover:border-brand-teal/50 transition-colors">
-                    <label className="text-xs font-bold text-brand-navy uppercase flex items-center justify-between">
+                    <label htmlFor="upload-degree" className="text-xs font-bold text-brand-navy uppercase flex items-center justify-between">
                       Degree Certificate
                       {submission.degree ? (
                         <Badge variant="green">Uploaded</Badge>
@@ -339,10 +482,10 @@ const Dashboard = () => {
                         <Badge variant="amber">Required</Badge>
                       )}
                     </label>
-                    <input type="file" className="w-full text-xs text-gray-400" onChange={() => handleFileChange('degree')} />
+                    <input id="upload-degree" type="file" className="w-full text-xs text-gray-400" onChange={() => handleFileChange('degree')} />
                   </div>
                   <div className="p-4 border rounded-xl space-y-3 bg-gray-50/50 hover:border-brand-teal/50 transition-colors">
-                    <label className="text-xs font-bold text-brand-navy uppercase flex items-center justify-between">
+                    <label htmlFor="upload-photo" className="text-xs font-bold text-brand-navy uppercase flex items-center justify-between">
                       Photograph
                       {submission.photo ? (
                         <Badge variant="green">Uploaded</Badge>
@@ -352,33 +495,124 @@ const Dashboard = () => {
                         <Badge variant="amber">Required</Badge>
                       )}
                     </label>
-                    <input type="file" className="w-full text-xs text-gray-400" onChange={() => handleFileChange('photo')} />
+                    <input id="upload-photo" type="file" className="w-full text-xs text-gray-400" onChange={() => handleFileChange('photo')} />
                   </div>
                 </div>
 
-                <div className="p-6 border rounded-2xl bg-brand-navy/5 space-y-4">
-                  <h5 className="text-sm font-bold text-brand-navy">Financial & ID Details</h5>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-6 border rounded-2xl bg-brand-navy/5 space-y-6">
+                  <h5 className="text-sm font-bold text-brand-navy">1. Personal Details</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Bank Account No</label>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">First Name</label>
                       <input 
                         type="text" 
-                        placeholder="Enter 12-16 digit No" 
+                        placeholder="First Name" 
                         className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
-                        value={submission.bankAcc}
-                        onChange={(e) => setSubmission({...submission, bankAcc: e.target.value})}
+                        value={submission.firstName}
+                        onChange={(e) => setSubmission({...submission, firstName: e.target.value})}
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Bank IFSC Code</label>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Last Name</label>
                       <input 
                         type="text" 
-                        placeholder="e.g. SBIN0001234" 
+                        placeholder="Last Name" 
                         className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
-                        value={submission.ifsc}
-                        onChange={(e) => setSubmission({...submission, ifsc: e.target.value})}
+                        value={submission.lastName}
+                        onChange={(e) => setSubmission({...submission, lastName: e.target.value})}
                       />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Email Address</label>
+                      <input 
+                        type="email" 
+                        placeholder="email@example.com" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.email}
+                        onChange={(e) => setSubmission({...submission, email: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Mobile Number</label>
+                      <input 
+                        type="tel" 
+                        placeholder="+91 XXXXX XXXXX" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.mobile}
+                        onChange={(e) => setSubmission({...submission, mobile: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="submission-dob" className="text-[10px] font-bold text-gray-500 uppercase">Date of Birth</label>
+                      <input 
+                        id="submission-dob"
+                        type="date" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.dob}
+                        onChange={(e) => setSubmission({...submission, dob: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="submission-address" className="text-[10px] font-bold text-gray-500 uppercase">Address</label>
+                      <input 
+                        id="submission-address"
+                        type="text" 
+                        placeholder="Current Address" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.address}
+                        onChange={(e) => setSubmission({...submission, address: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <h5 className="text-sm font-bold text-brand-navy pt-4 border-t">2. Employment Details</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-1">
+                      <label htmlFor="submission-empid" className="text-[10px] font-bold text-gray-500 uppercase">Employee ID</label>
+                      <input 
+                        id="submission-empid"
+                        type="text" 
+                        placeholder="e.g. VYR-001" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.employeeId}
+                        onChange={(e) => setSubmission({...submission, employeeId: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="submission-jobtitle" className="text-[10px] font-bold text-gray-500 uppercase">Job Title</label>
+                      <input 
+                        id="submission-jobtitle"
+                        type="text" 
+                        placeholder="e.g. Senior Developer" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.jobTitle}
+                        onChange={(e) => setSubmission({...submission, jobTitle: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="submission-joining-date" className="text-[10px] font-bold text-gray-500 uppercase">Date of Joining</label>
+                      <input 
+                        id="submission-joining-date"
+                        type="date" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.joiningDate}
+                        onChange={(e) => setSubmission({...submission, joiningDate: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Reporting Manager</label>
+                      <input 
+                        type="text" 
+                        placeholder="Assigned Manager" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.manager}
+                        onChange={(e) => setSubmission({...submission, manager: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <h5 className="text-sm font-bold text-brand-navy pt-4 border-t">3. Financial & ID Details</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-gray-500 uppercase">PAN Card Number</label>
                       <input 
@@ -389,21 +623,51 @@ const Dashboard = () => {
                         onChange={(e) => setSubmission({...submission, pan: e.target.value})}
                       />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Bank Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. ICICI Bank" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.bankName}
+                        onChange={(e) => setSubmission({...submission, bankName: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Account Number</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter 12-16 digit No" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.bankAcc}
+                        onChange={(e) => setSubmission({...submission, bankAcc: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">IFSC Code</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. ICIC0000123" 
+                        className="w-full border p-2 text-sm rounded-lg outline-none focus:ring-2 focus:ring-brand-teal"
+                        value={submission.ifsc}
+                        onChange={(e) => setSubmission({...submission, ifsc: e.target.value})}
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <Button 
                   className={`w-full py-6 h-auto text-sm font-bold shadow-lg transition-all ${
-                    (draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan) 
+                    (draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan && submission.firstName && submission.lastName && submission.email && submission.mobile && submission.dob && submission.address && submission.employeeId && submission.jobTitle && submission.joiningDate && submission.manager && submission.bankName) 
                     ? 'bg-brand-teal hover:bg-emerald-600 shadow-brand-teal/20' 
                     : 'bg-gray-300 cursor-not-allowed grayscale'
                   }`} 
                   onClick={handleDocSubmit}
-                  disabled={!(draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan)}
+                  disabled={!(draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan && submission.firstName && submission.lastName && submission.email && submission.mobile && submission.dob && submission.address && submission.employeeId && submission.jobTitle && submission.joiningDate && submission.manager && submission.bankName)}
                 >
-                  {(draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan) 
-                    ? 'Submit All Documents for Verification' 
-                    : 'Upload All Documents to Enable Submission'}
+                  {(draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan && submission.firstName && submission.lastName && submission.email && submission.mobile && submission.dob && submission.address && submission.employeeId && submission.jobTitle && submission.joiningDate && submission.manager && submission.bankName) 
+                    ? 'Submit All Details & Documents' 
+                    : 'Please Fill All Details & Upload All Documents to Enable Submission'}
                 </Button>
               </div>
             </CardContent>
@@ -475,7 +739,19 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
                         <h4 className="font-bold text-brand-navy group-hover:text-black transition-colors">{n.title}</h4>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">{n.time}</span>
+                        <div className="flex items-center gap-4">
+                          {profile?.role === 'admin' && (
+                             <div className="hidden group-hover:flex items-center gap-3 mr-3 border-r pr-4 border-gray-200">
+                               <Button variant="ghost" size="sm" onClick={() => setEditingAnnouncement(n)} className="h-7 text-xs gap-1.5 text-gray-500 hover:text-brand-teal p-1 px-2">
+                                 <Pencil size={12} /> Edit
+                               </Button>
+                               <Button variant="ghost" size="sm" onClick={() => handleDeleteAnnouncement(n.id)} className="h-7 text-xs gap-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 p-1 px-2">
+                                 <Trash2 size={12} /> Delete
+                               </Button>
+                             </div>
+                          )}
+                          <span className="text-[10px] font-bold text-gray-400 uppercase">{getRelativeTime(n.time)}</span>
+                        </div>
                       </div>
                       <p className="text-sm text-gray-600 mt-1">{n.message}</p>
                     </div>
@@ -491,25 +767,16 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-brand-navy">Dashboard Snapshot</h2>
-        <Button 
-          variant="outline" 
-          onClick={handleSync} 
-          disabled={refreshing}
-          className="gap-2 border-brand-teal text-brand-teal hover:bg-brand-teal hover:text-white"
-        >
-          <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-          {refreshing ? 'Syncing...' : 'Fetch & Sync Accounts'}
-        </Button>
+      <div className="flex justify-between items-center mb-4 sm:mb-8">
+        <h2 className="text-2xl sm:text-4xl font-bold text-brand-navy tracking-tight">Dashboard Snapshot</h2>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
         <Card className="border-l-4 border-l-brand-teal">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Total Employees</p>
-              <h3 className="text-3xl font-bold mt-2">
+              <h3 className="text-3xl font-bold mt-2 text-brand-navy">
                 {loading ? '...' : stats.totalEmployees}
               </h3>
             </div>
@@ -523,7 +790,7 @@ const Dashboard = () => {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Present Today</p>
-              <h3 className="text-3xl font-bold mt-2">
+              <h3 className="text-3xl font-bold mt-2 text-brand-navy">
                 {loading ? '...' : stats.presentToday}
               </h3>
             </div>
@@ -537,7 +804,7 @@ const Dashboard = () => {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">On Leave</p>
-              <h3 className="text-3xl font-bold mt-2">
+              <h3 className="text-3xl font-bold mt-2 text-brand-navy">
                 {loading ? '...' : stats.onLeave}
               </h3>
             </div>
@@ -548,8 +815,8 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Link to="/dashboard/updates" className="group">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
+        <div onClick={() => document.getElementById('company-updates-section')?.scrollIntoView({ behavior: 'smooth' })} className="group cursor-pointer">
           <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-brand-teal/5 to-white border-l-4 border-l-brand-teal overflow-hidden">
             <CardContent className="p-6 space-y-4">
               <div className="w-10 h-10 bg-brand-teal/10 rounded-xl flex items-center justify-center text-brand-teal group-hover:scale-110 transition-transform">
@@ -561,7 +828,7 @@ const Dashboard = () => {
               </div>
             </CardContent>
           </Card>
-        </Link>
+        </div>
 
         <Link to="/dashboard/hiring" className="group">
           <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-blue-50/30 to-white border-l-4 border-l-blue-500 overflow-hidden">
@@ -592,19 +859,49 @@ const Dashboard = () => {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div id="company-updates-section" className="grid grid-cols-1 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle>Current Employees</CardTitle>
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-brand-teal transition-colors" size={16} />
-              <input 
-                type="text" 
-                placeholder="Search name or email..." 
-                className="pl-9 pr-4 py-2 border rounded-xl bg-gray-50/50 text-xs outline-none focus:ring-2 focus:ring-brand-teal w-64 transition-all"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+          <CardHeader className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pb-2">
+            <CardTitle>Current Employees ({profiles.length})</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={restoreOwnership}
+                className="gap-2 text-status-amber hover:bg-status-amber/5 font-bold border border-status-amber/20 text-xs"
+              >
+                Restore to My Account
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleSync}
+                className="gap-2 text-brand-teal hover:bg-brand-teal/5 font-bold text-xs"
+              >
+                <div className={refreshing ? 'animate-spin' : ''}>
+                  <OffboardIcon size={16} /> 
+                </div>
+                Sync
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleDownloadCSV}
+                className="gap-2 text-brand-teal hover:bg-brand-teal/5 font-bold text-xs"
+              >
+                <Download size={16} /> 
+                Download CSV
+              </Button>
+              <div className="relative group w-full sm:w-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-brand-teal transition-colors" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Search name or email..." 
+                  className="pl-9 pr-4 py-2 border rounded-xl bg-gray-50/50 text-xs outline-none focus:ring-2 focus:ring-brand-teal w-full sm:w-64 transition-all"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -613,18 +910,23 @@ const Dashboard = () => {
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50 rounded-md border-b">
                   <tr>
                     <th className="px-6 py-3">Name</th>
-                    <th className="px-6 py-3">Email</th>
-                    <th className="px-6 py-3">Role</th>
+                    <th className="px-6 py-3 hidden md:table-cell">Email</th>
+                    <th className="px-6 py-3 hidden md:table-cell">Role</th>
                     <th className="px-6 py-3">Designation</th>
+                    <th className="px-6 py-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(() => {
-                    const filtered = profiles.filter(p => 
-                      p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                      p.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      p.employee_id?.toLowerCase().includes(searchTerm.toLowerCase())
-                    );
+                    const filtered = (profiles || []).filter(p => {
+                      if (!p) return false;
+                      const searchStr = (searchTerm || '').toLowerCase();
+                      const name = (p.full_name || '').toLowerCase();
+                      const email = (p.email || '').toLowerCase();
+                      const eid = (p.employee_id || p.id || '').toLowerCase();
+                      
+                      return name.includes(searchStr) || email.includes(searchStr) || eid.includes(searchStr);
+                    });
                     
                     if (filtered.length === 0) {
                       return <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 italic">No employees found matching "{searchTerm}"</td></tr>;
@@ -636,15 +938,57 @@ const Dashboard = () => {
                         {p.full_name || 'N/A'}
                         <div className="text-[10px] text-gray-400 font-normal">{p.employee_id}</div>
                       </td>
-                      <td className="px-6 py-4 text-gray-500 flex items-center gap-1">
-                        <Mail size={12} /> {p.email}
+                      <td className="px-6 py-4 text-gray-500 hidden md:table-cell">
+                        <div className="flex items-center gap-1">
+                          <Mail size={12} /> {p.email}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-gray-500">
-                        <Badge variant={p.role === 'admin' ? 'blue' : 'neutral'}>{p.role}</Badge> 
+                      <td className="px-6 py-4 text-gray-500 hidden md:table-cell">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={p.role === 'admin' ? 'blue' : 'neutral'}>{p.role}</Badge> 
+                          {p.onboarding_status && p.onboarding_status !== 'Completed' && (
+                            <Badge variant="amber">Onboarding</Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-gray-500">
                         {p.designation || 'Staff'}
                       </td>
+                      <td className="px-6 py-4 text-right flex justify-end gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-brand-teal border-brand-teal hover:bg-brand-teal hover:text-white"
+                          onClick={() => {
+                            const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
+                            const sub = allSubmissions[p.employee_id || p.id] || null;
+                            setSelectedProfile({ ...p, submission: sub });
+                          }}
+                        >
+                          View Profile
+                        </Button>
+                        {profile?.role === 'admin' && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-brand-orange border-brand-orange hover:bg-brand-orange hover:text-white flex items-center gap-1.5"
+                            onClick={() => {
+                              setEditingEmployee(p);
+                              setEditFormData({
+                                fullName: p.full_name || '',
+                                designation: p.designation || '',
+                                department: p.department || '',
+                                grossSalary: p.gross_salary || '0',
+                                bankName: p.bank_name || '',
+                                bankAccount: p.bank_account || ''
+                              });
+                            }}
+                          >
+                            <Pencil size={12} /> Edit
+                          </Button>
+                        )}
+                      </td>
+
                     </tr>
                     ));
                   })()}
@@ -694,7 +1038,19 @@ const Dashboard = () => {
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
                           <h4 className="font-bold text-brand-navy group-hover:text-black transition-colors">{n.title}</h4>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase">{n.time}</span>
+                          <div className="flex items-center gap-4">
+                            {profile?.role === 'admin' && (
+                               <div className="hidden group-hover:flex items-center gap-3 mr-3 border-r pr-4 border-gray-200">
+                                 <Button variant="ghost" size="sm" onClick={() => setEditingAnnouncement(n)} className="h-7 text-xs gap-1.5 text-gray-500 hover:text-brand-teal p-1 px-2">
+                                   <Pencil size={12} /> Edit
+                                 </Button>
+                                 <Button variant="ghost" size="sm" onClick={() => handleDeleteAnnouncement(n.id)} className="h-7 text-xs gap-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 p-1 px-2">
+                                   <Trash2 size={12} /> Delete
+                                 </Button>
+                               </div>
+                            )}
+                            <span className="text-[10px] font-bold text-gray-400 uppercase">{getRelativeTime(n.time)}</span>
+                          </div>
                         </div>
                         <p className="text-sm text-gray-600 mt-1">{n.message}</p>
                       </div>
@@ -746,6 +1102,210 @@ const Dashboard = () => {
                 Post Update to All Employees
               </Button>
             </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ===== EDIT MODAL ===== */}
+      {editingAnnouncement && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[110]">
+          <Card className="max-w-md w-full shadow-2xl animate-in zoom-in-95">
+            <CardHeader className="border-b bg-gray-50/50 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">Edit Announcement</CardTitle>
+              <button onClick={() => setEditingAnnouncement(null)} className="text-gray-400 hover:text-gray-600" aria-label="Close modal" title="Close modal"><X size={20} /></button>
+            </CardHeader>
+            <CardContent className="p-6">
+              <form onSubmit={handleEditAnnouncementSave} className="space-y-4">
+                <div>
+                  <label htmlFor="edit-announce-title" className="text-xs font-bold text-gray-500 mb-1 block">Title</label>
+                  <input id="edit-announce-title" name="editTitle" type="text" defaultValue={editingAnnouncement.title} className="w-full text-sm p-3 border rounded-lg" required />
+                </div>
+                <div>
+                  <label htmlFor="edit-announce-msg" className="text-xs font-bold text-gray-500 mb-1 block">Message</label>
+                  <textarea id="edit-announce-msg" name="editMessage" defaultValue={editingAnnouncement.message} className="w-full text-sm p-3 border rounded-lg h-32" required />
+                </div>
+                <Button className="w-full bg-brand-navy shrink-0">Save Changes</Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ===== PROFILE MODAL ===== */}
+      {selectedProfile && (
+        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <Card className="w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+            <CardHeader className="bg-brand-navy text-white border-b flex flex-row items-center justify-between py-4">
+              <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 rounded-xl bg-brand-teal flex items-center justify-center font-bold text-xl">
+                   {selectedProfile.full_name?.[0]}
+                 </div>
+                 <div>
+                   <CardTitle className="text-white">{selectedProfile.full_name}</CardTitle>
+                   <p className="text-xs text-brand-teal font-medium uppercase">{selectedProfile.designation || 'Hired Professional'}</p>
+                 </div>
+              </div>
+              <button 
+                onClick={() => setSelectedProfile(null)} 
+                className="text-white/60 hover:text-white transition-colors"
+                aria-label="Close profile"
+                title="Close profile"
+              >
+                <X size={24} />
+              </button>
+            </CardHeader>
+            <CardContent className="p-6 max-h-[80vh] overflow-y-auto">
+              {selectedProfile.submission ? (
+                <div className="space-y-8">
+                  {/* Personal Section */}
+                  <div className="space-y-4">
+                    <h5 className="text-sm font-bold text-brand-teal uppercase border-b pb-1">1. Personal Details</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">First Name</p><p className="font-medium">{selectedProfile.submission.firstName}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Last Name</p><p className="font-medium">{selectedProfile.submission.lastName}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Email</p><p className="font-medium">{selectedProfile.submission.email}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Mobile</p><p className="font-medium">{selectedProfile.submission.mobile}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Date of Birth</p><p className="font-medium">{selectedProfile.submission.dob}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Address</p><p className="font-medium">{selectedProfile.submission.address}</p></div>
+                    </div>
+                  </div>
+
+                  {/* Employment Section */}
+                  <div className="space-y-4">
+                    <h5 className="text-sm font-bold text-brand-teal uppercase border-b pb-1">2. Employment Details</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Employee ID</p><p className="font-medium">{selectedProfile.submission.employeeId}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Job Title</p><p className="font-medium">{selectedProfile.submission.jobTitle}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Joining Date</p><p className="font-medium">{selectedProfile.submission.joiningDate}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Manager</p><p className="font-medium">{selectedProfile.submission.manager}</p></div>
+                    </div>
+                  </div>
+
+                  {/* Financial Section */}
+                  <div className="space-y-4">
+                    <h5 className="text-sm font-bold text-brand-teal uppercase border-b pb-1">3. Financial & ID Details</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">PAN Number</p><p className="font-medium">{selectedProfile.submission.pan || 'N/A'}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Bank Name</p><p className="font-medium">{selectedProfile.submission.bankName || 'N/A'}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">Account Number</p><p className="font-medium">{selectedProfile.submission.bankAcc || 'N/A'}</p></div>
+                      <div><p className="text-[10px] text-gray-400 font-bold uppercase">IFSC Code</p><p className="font-medium">{selectedProfile.submission.ifsc || 'N/A'}</p></div>
+                    </div>
+                  </div>
+
+                  {/* Documents Section */}
+                  <div className="space-y-4">
+                    <h5 className="text-sm font-bold text-brand-teal uppercase border-b pb-1">4. Verfied Documents</h5>
+                    <div className="flex flex-wrap gap-3">
+                      {['Offer Letter', 'Aadhar Card', 'Degree', 'Photograph'].map(doc => (
+                        <div key={doc} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-100">
+                          <Plus size={14} className="rotate-45" /> {doc}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-20 text-center space-y-4">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto text-gray-300">
+                    <Users size={32} />
+                  </div>
+                  <p className="text-gray-500 italic">This employee hasn't submitted their onboarding details yet.</p>
+                </div>
+              )}
+            </CardContent>
+            <div className="p-4 bg-gray-50 border-t flex justify-end">
+               <Button onClick={() => setSelectedProfile(null)} className="px-6">Close Reference</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+      {editingEmployee && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300 overflow-y-auto">
+          <Card className="w-full max-w-lg border-none shadow-2xl animate-in zoom-in duration-300">
+            <CardHeader className="flex flex-row justify-between items-center border-b pb-4 bg-brand-navy text-white">
+              <CardTitle className="flex items-center gap-2 text-white">
+                <Pencil size={20} className="text-brand-teal" />
+                Edit Profile & Salary
+              </CardTitle>
+              <button 
+                onClick={() => setEditingEmployee(null)} 
+                className="text-white/60 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-all"
+              >
+                <X size={16} />
+              </button>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-brand-navy uppercase pl-1">Full Name</label>
+                <input 
+                  type="text" 
+                  value={editFormData.fullName}
+                  onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                  className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-brand-navy uppercase pl-1">Designation</label>
+                  <input 
+                    type="text" 
+                    value={editFormData.designation}
+                    onChange={(e) => setEditFormData({ ...editFormData, designation: e.target.value })}
+                    className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-brand-navy uppercase pl-1">Department</label>
+                  <input 
+                    type="text" 
+                    value={editFormData.department}
+                    onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                    className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-brand-navy uppercase pl-1">Gross Salary (CTC - Monthly)</label>
+                <input 
+                  type="number" 
+                  value={editFormData.grossSalary}
+                  onChange={(e) => setEditFormData({ ...editFormData, grossSalary: e.target.value })}
+                  placeholder="e.g. 50000"
+                  className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none font-bold text-brand-orange"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-brand-navy uppercase pl-1">Bank Name</label>
+                  <input 
+                    type="text" 
+                    value={editFormData.bankName}
+                    onChange={(e) => setEditFormData({ ...editFormData, bankName: e.target.value })}
+                    placeholder="e.g. HDFC Bank"
+                    className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-brand-navy uppercase pl-1">Bank Account</label>
+                  <input 
+                    type="text" 
+                    value={editFormData.bankAccount}
+                    onChange={(e) => setEditFormData({ ...editFormData, bankAccount: e.target.value })}
+                    placeholder="e.g. 50100293883"
+                    className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <div className="p-4 bg-gray-50 border-t flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setEditingEmployee(null)}>Cancel</Button>
+              <Button onClick={handleSaveProfile} className="bg-brand-orange hover:bg-orange-600 font-bold px-6">Save Changes</Button>
+            </div>
           </Card>
         </div>
       )}

@@ -5,6 +5,7 @@ import { Badge } from '../../components/ui/Badge';
 import { CheckCircle, Trash2, LayoutList, UserMinus, Search, Download } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { jsPDF } from 'jspdf';
+import { supabase } from '../../lib/supabase';
 
 const Offboarding = () => {
   const { profile } = useAuth();
@@ -14,53 +15,52 @@ const Offboarding = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    // Load hardcoded examples
-    const hardcoded = [
-      { 
-        id: 'OFF-1', 
-        name: 'Angela Martin', 
-        employee_id: 'VYR-2024-009',
-        designation: 'Head of Accounting', 
-        lwd: 'Oct 30, 2026', 
-        status: 'Pending', 
-        reason: 'Pursuing other interests' 
-      },
-      { 
-        id: 'OFF-2', 
-        name: 'Kevin Malone', 
-        employee_id: 'VYR-2024-012',
-        designation: 'Accountant', 
-        lwd: 'Nov 15, 2026', 
-        status: 'Completed', 
-        reason: 'Career growth' 
-      },
-    ];
-    
-    // Load local storage requests
-    const savedRequests = JSON.parse(localStorage.getItem('hr_offboarding_requests') || '[]')
-      .filter((r: any) => r.admin_context === profile?.email || r.admin_context === 'praveen12rangasamy@gmail.com');
-    
-    // Filter hardcoded to show for this specific admin if applicable or just show as examples
-    const filteredHardcoded = hardcoded.filter(h => profile?.email === 'praveen12rangasamy@gmail.com' || h.id === 'OFF-1');
+    const fetchRequests = async () => {
+      try {
+        if (!profile?.email) return;
+        const { data, error } = await supabase
+          .from('resignations')
+          .select(`
+            id,
+            lwd,
+            reason,
+            status,
+            checklist,
+            user_id,
+            profiles!inner (
+              full_name,
+              employee_id,
+              designation,
+              hired_by
+            )
+          `)
+          .ilike('profiles.hired_by', profile.email.trim());
+        
+        if (error) throw error;
 
-    setRequests([...savedRequests, ...filteredHardcoded]);
-    
-    // Load checklists
-    const savedChecklists = JSON.parse(localStorage.getItem('hr_offboarding_checklists') || '{}');
-    
-    // Initialize checklist for example if not exists
-    if (!savedChecklists['OFF-1']) {
-       savedChecklists['OFF-1'] = { 
-         resignation_letter: true, 
-         lwd_confirmed: true, 
-         assets_collected: false, 
-         kt_completed: false, 
-         no_dues_verified: false, 
-         no_loans_pending: true 
-       };
-    }
-    
-    setChecklists(savedChecklists);
+        const mapped = (data || []).map((r: any) => ({
+          id: r.id,
+          name: r.profiles?.full_name || 'N/A',
+          employee_id: r.profiles?.employee_id || 'N/A',
+          designation: r.profiles?.designation || 'Employee',
+          lwd: new Date(r.lwd).toLocaleDateString(),
+          status: r.status,
+          reason: r.reason
+        }));
+
+        setRequests(mapped);
+
+        // Map checklists
+        const checklistMap: any = {};
+        (data || []).forEach((r: any) => {
+          checklistMap[r.id] = r.checklist;
+        });
+        setChecklists(checklistMap);
+      } catch (err: any) {
+        console.error("Error fetching resignations:", err.message);
+      }
+    };
+    fetchRequests();
   }, []);
 
   const handleDownload = (itemName: string, employeeName: string) => {
@@ -79,12 +79,21 @@ const Offboarding = () => {
     doc.save(`${employeeName.replace(' ', '_')}_${itemName.replace(' ', '_')}.pdf`);
   };
 
-  const handleToggle = (requestId: string, key: string) => {
+  const handleToggle = async (requestId: string, key: string) => {
     const updated = { ...checklists };
     if (!updated[requestId]) updated[requestId] = {};
     updated[requestId][key] = !updated[requestId][key];
-    setChecklists(updated);
-    localStorage.setItem('hr_offboarding_checklists', JSON.stringify(updated));
+    
+    try {
+      const { error } = await supabase
+        .from('resignations')
+        .update({ checklist: updated[requestId] })
+        .eq('id', requestId);
+      if (error) throw error;
+      setChecklists(updated);
+    } catch (err: any) {
+      console.error("Error updating checklist:", err.message);
+    }
   };
 
   const selectedReq = requests.find(r => r.id === selectedRequestId);
@@ -186,24 +195,24 @@ const Offboarding = () => {
       {selectedRequestId && selectedReq ? (
         <div className="flex justify-center animate-in slide-in-from-bottom duration-500">
           <Card className="max-w-xl w-full border-none shadow-2xl rounded-3xl overflow-hidden bg-white">
-            <CardHeader className="pb-4 pt-10 px-10">
-              <div className="flex justify-between items-start mb-6">
+            <CardHeader className="pb-4 pt-8 sm:pt-10 px-4 sm:px-10">
+              <div className="flex flex-col sm:flex-row gap-4 justify-between items-start mb-6">
                 <div>
-                  <h3 className="text-2xl font-black text-brand-navy tracking-tight">
+                  <h3 className="text-xl sm:text-2xl font-black text-brand-navy tracking-tight">
                     Exit Checklist: <span className="text-brand-teal">{selectedReq.name}</span>
                   </h3>
-                  <p className="text-gray-500 italic mt-1 font-medium text-lg opacity-70">
+                  <p className="text-gray-500 italic mt-1 font-medium text-sm sm:text-lg opacity-70">
                     " {selectedReq.reason} "
                   </p>
                 </div>
-                <Badge variant="amber" className="px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-600 border-amber-100">
+                <Badge variant="amber" className="px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-600 border-amber-100 shrink-0">
                   {selectedReq.status}
                 </Badge>
               </div>
               <hr className="opacity-10" />
             </CardHeader>
 
-            <CardContent className="px-10 pb-10 pt-4 space-y-4">
+            <CardContent className="px-4 sm:px-10 pb-8 sm:pb-10 pt-4 space-y-4">
               {[
                 { label: 'Resignation Letter submitted', key: 'resignation_letter' },
                 { label: 'Last Working Day confirmed (Notice period served)', key: 'lwd_confirmed' },
@@ -216,22 +225,22 @@ const Offboarding = () => {
                 return (
                   <div 
                     key={i} 
-                    className={`flex items-center justify-between p-5 rounded-2xl border-2 transition-all group ${
+                    className={`flex items-center justify-between p-4 sm:p-5 rounded-2xl border-2 transition-all group ${
                       isSelected 
                         ? 'bg-emerald-50/30 border-emerald-100 shadow-sm' 
                         : 'bg-white border-brand-navy/5 hover:border-brand-navy/20'
                     }`}
                   >
                     <div 
-                      className="flex items-center gap-4 cursor-pointer flex-1"
+                      className="flex items-center gap-3 sm:gap-4 cursor-pointer flex-1"
                       onClick={() => handleToggle(selectedRequestId!, item.key)}
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${
                         isSelected ? 'bg-emerald-100 text-status-green scale-110' : 'bg-gray-50 text-gray-300 border border-gray-100'
                       }`}>
                         {isSelected ? <CheckCircle size={22} /> : <div className="w-6 h-6 rounded-full border-2 border-dashed border-gray-200" />}
                       </div>
-                      <span className={`text-base font-bold transition-colors ${
+                      <span className={`text-sm sm:text-base font-bold transition-colors ${
                         isSelected ? 'text-gray-400' : 'text-brand-navy opacity-80 group-hover:opacity-100'
                       }`}>
                         {item.label}
@@ -262,14 +271,19 @@ const Offboarding = () => {
                 </Button>
                 <Button 
                   className="flex-1 py-7 rounded-2xl bg-[#e60000] hover:bg-red-700 text-white font-black text-base border-none shadow-xl shadow-red-500/20 active:scale-95 transition-all gap-2"
-                  onClick={() => {
-                    const updated = requests.filter(r => r.id !== selectedRequestId);
-                    if (selectedRequestId && !selectedRequestId.startsWith('OFF-')) {
-                       const filtered = JSON.parse(localStorage.getItem('hr_offboarding_requests') || '[]').filter((r: any) => r.id !== selectedRequestId);
-                       localStorage.setItem('hr_offboarding_requests', JSON.stringify(filtered));
+                  onClick={async () => {
+                    if (!selectedRequestId) return;
+                    try {
+                      const { error } = await supabase
+                        .from('resignations')
+                        .update({ status: 'Completed' })
+                        .eq('id', selectedRequestId);
+                      if (error) throw error;
+                      setRequests(requests.map(r => r.id === selectedRequestId ? { ...r, status: 'Completed' } : r));
+                      setSelectedRequestId(null);
+                    } catch (err: any) {
+                      console.error("Error approving exit:", err.message);
                     }
-                    setRequests(updated);
-                    setSelectedRequestId(null);
                   }}
                 >
                   <Trash2 size={20} className="mb-0.5" /> Approve Exit & Archive
@@ -279,9 +293,9 @@ const Offboarding = () => {
           </Card>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[2rem] border-2 border-dashed border-brand-navy/10 text-gray-400 animate-in fade-in duration-700">
-          <div className="w-20 h-20 bg-brand-navy/5 rounded-full flex items-center justify-center mb-6">
-            <UserMinus size={40} className="text-brand-navy opacity-20" />
+        <div className="flex flex-col items-center justify-center p-10 sm:p-20 bg-white rounded-[2rem] border-2 border-dashed border-brand-navy/10 text-gray-400 animate-in fade-in duration-700">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-brand-navy/5 rounded-full flex items-center justify-center mb-6">
+            <UserMinus size={36} className="text-brand-navy opacity-20" />
           </div>
           <h3 className="text-xl font-bold text-brand-navy opacity-40">No Record Selected</h3>
           <p className="text-gray-400 mt-2 text-center max-w-xs font-medium">Click on an applicant row to view and manage their exit checklist.</p>

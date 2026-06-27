@@ -4,8 +4,10 @@ import Dashboard from './pages/home/Dashboard';
 import HiringOnboarding from './pages/home/HiringOnboarding';
 import Offboarding from './pages/home/Offboarding';
 import RoleHierarchy from './pages/home/RoleHierarchy';
+import SkillsLearning from './pages/home/SkillsLearning';
 import Updates from './pages/home/Updates';
 import Settings from './pages/home/Settings';
+import CalendarPage from './pages/home/Calendar';
 
 // My Space
 import Profile from './pages/myspace/Profile';
@@ -24,7 +26,7 @@ import Equipment from './pages/assets/Equipment';
 import Query from './pages/assets/Query';
 
 // Performance
-import PerformancePlaceholder from './pages/performance/PerformancePlaceholder';
+import Performance from './pages/performance/Performance';
 // import Goals from './pages/performance/Goals';
 // import Analytics from './pages/performance/Analytics';
 
@@ -32,7 +34,24 @@ import LandingPage from './pages/LandingPage';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
+import { useEffect } from 'react';
+
 function App() {
+  useEffect(() => {
+    // Purge cached fake records from previous versions to ensure production cleanliness
+    if (!localStorage.getItem('fake_data_purged_v4')) {
+      const keysToPurge = [
+        'hr_equipment', 'all_equipment', 'software_licenses', 'hr_licenses', 'hr_assets_queries', 'asset_queries',
+        'hr_loan_applications', 'hr_support_tickets', 'hr_leave_requests', 
+        'hr_courses_assigned', 'hr_payroll_ledger', 'hr_employee_attendance', 'hr_attendance_logs',
+        'hr_employee_submissions', 'hr_offboarding_requests', 'hr_offboarding_checklists',
+        'hr_employee_credentials', 'hr_role_hierarchy'
+      ];
+      keysToPurge.forEach(k => localStorage.removeItem(k));
+      localStorage.setItem('fake_data_purged_v4', 'true');
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <Router>
@@ -59,11 +78,8 @@ function App() {
                 <Offboarding />
               </ProtectedRoute>
             } />
-            <Route path="hierarchy" element={
-              <ProtectedRoute requireAdmin>
-                <RoleHierarchy />
-              </ProtectedRoute>
-            } />
+            <Route path="hierarchy" element={<RoleHierarchy />} />
+            <Route path="skills" element={<SkillsLearning />} />
             <Route path="updates" element={
               <ProtectedRoute requireAdmin>
                 <Updates />
@@ -98,7 +114,8 @@ function App() {
                 </ProtectedRoute>
               } />
             </Route>
-            <Route path="performance" element={<PerformancePlaceholder />} />
+            <Route path="performance" element={<Performance />} />
+            <Route path="calendar" element={<CalendarPage />} />
 
             {/* Flat links for backward compatibility if needed */}
             <Route path="profile" element={<Profile />} />

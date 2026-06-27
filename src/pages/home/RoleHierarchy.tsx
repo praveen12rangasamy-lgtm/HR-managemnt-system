@@ -1,48 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { User, ChevronDown, ChevronRight, Briefcase, Calendar, Award } from 'lucide-react';
+import { User, ChevronDown, ChevronRight, Briefcase, Calendar, Award, Layers } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface Employee {
   id: string;
   name: string;
   role: string;
   experience: string;
+  project?: string;
   avatar?: string;
   children?: Employee[];
 }
 
 const hierarchyData: Employee = {
   id: 'ADM-001',
-  name: 'Praveen',
+  name: 'Admin',
   role: 'Admin / CEO',
   experience: '12 Years',
+  project: 'Corporate Strategy',
   avatar: 'https://i.pravatar.cc/150?img=68',
-  children: [
-    {
-      id: 'MGR-001',
-      name: 'Sarah Connor',
-      role: 'Operations Manager',
-      experience: '8 Years',
-      avatar: 'https://i.pravatar.cc/150?img=47',
-      children: [
-        { id: 'EMP-101', name: 'John Smith', role: 'Sr. Backend Dev', experience: '5 Years', avatar: 'https://i.pravatar.cc/150?img=33' },
-        { id: 'EMP-102', name: 'Jane Doe', role: 'UX Designer', experience: '4 Years', avatar: 'https://i.pravatar.cc/150?img=32' },
-        { id: 'EMP-103', name: 'Alex Rivera', role: 'Full Stack Dev', experience: '3 Years', avatar: 'https://i.pravatar.cc/150?img=11' },
-      ]
-    },
-    {
-      id: 'MGR-002',
-      name: 'Michael Scott',
-      role: 'Sales Director',
-      experience: '15 Years',
-      avatar: 'https://i.pravatar.cc/150?img=13',
-      children: [
-        { id: 'EMP-201', name: 'Jim Halpert', role: 'Sales Manager', experience: '7 Years', avatar: 'https://i.pravatar.cc/150?img=14' },
-        { id: 'EMP-202', name: 'Dwight Schrute', role: 'Asst. Regional Mgr', experience: '10 Years', avatar: 'https://i.pravatar.cc/150?img=15' },
-      ]
-    }
-  ]
+  children: []
 };
 
 
@@ -114,7 +93,82 @@ const TreeNodeWrapper = ({ node, selectedNode, onSelect }: { node: Employee, sel
 };
 
 const RoleHierarchy = () => {
-  const [selectedNode, setSelectedNode] = useState<Employee | null>(hierarchyData);
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const [treeData, setTreeData] = useState<Employee>(() => {
+    const saved = localStorage.getItem('hr_role_hierarchy');
+    return saved ? JSON.parse(saved) : hierarchyData;
+  });
+  const [selectedNode, setSelectedNode] = useState<Employee | null>(treeData);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editRoleStr, setEditRoleStr] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('hr_role_hierarchy', JSON.stringify(treeData));
+  }, [treeData]);
+
+  const handleSelectNode = (node: Employee) => {
+    setSelectedNode(node);
+    setIsEditing(false);
+  };
+
+  const handleSaveRole = () => {
+    if (!selectedNode) return;
+    
+    if (selectedNode.id === treeData.id) {
+       const newTree = { ...treeData, role: editRoleStr };
+       setTreeData(newTree);
+       setSelectedNode(newTree);
+       setIsEditing(false);
+       return;
+    }
+
+    let targetNode: Employee | null = null;
+    let oldParentId: string | null = null;
+
+    const removeNode = (node: Employee): Employee => {
+      if (!node.children) return node;
+      if (node.children.some(c => c.id === selectedNode.id)) {
+        targetNode = node.children.find(c => c.id === selectedNode.id) || null;
+        oldParentId = node.id;
+        return { ...node, children: node.children.filter(c => c.id !== selectedNode.id) };
+      }
+      return {
+        ...node,
+        children: node.children.map(removeNode)
+      };
+    };
+
+    let treeWithoutTarget = removeNode(treeData);
+    if (!targetNode) targetNode = { ...selectedNode };
+    
+    targetNode = { ...targetNode, role: editRoleStr };
+
+    const isManager = /manager|director|vp|head|chief|mgr/i.test(editRoleStr);
+    let newParentId = 'ADM-001';
+    if (!isManager) {
+      if (oldParentId === 'ADM-001') {
+        newParentId = 'MGR-001';
+      } else {
+        newParentId = oldParentId || 'MGR-001';
+      }
+    }
+
+    const insertNode = (node: Employee): Employee => {
+      if (node.id === newParentId) {
+        return { ...node, children: [...(node.children || []), targetNode!] };
+      }
+      if (node.children) {
+        return { ...node, children: node.children.map(insertNode) };
+      }
+      return node;
+    };
+
+    const newTree = insertNode(treeWithoutTarget);
+    setTreeData(newTree);
+    setSelectedNode(targetNode);
+    setIsEditing(false);
+  };
 
   return (
     <div className="space-y-12">
@@ -126,9 +180,9 @@ const RoleHierarchy = () => {
       <div className="overflow-x-auto pb-20 pt-10 min-h-[500px] flex justify-center">
         <div className="inline-block align-top">
           <TreeNodeWrapper 
-            node={hierarchyData} 
+            node={treeData} 
             selectedNode={selectedNode}
-            onSelect={setSelectedNode}
+            onSelect={handleSelectNode}
           />
         </div>
       </div>
@@ -161,12 +215,56 @@ const RoleHierarchy = () => {
                     </p>
                     <p className="text-lg font-bold text-brand-navy">{selectedNode.experience}</p>
                   </div>
+                  
+                  {selectedNode.project && (
+                    <div className="space-y-1">
+                      <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-gray-400">
+                        <Layers size={12} className="text-brand-teal" /> Current Project
+                      </p>
+                      <p className="text-lg font-bold text-brand-navy">{selectedNode.project}</p>
+                    </div>
+                  )}
 
                   <div className="space-y-1">
                     <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-gray-400">
                       <Briefcase size={12} className="text-brand-teal" /> Role & Rank
                     </p>
-                    <p className="text-lg font-bold text-brand-navy">{selectedNode.role}</p>
+                    {isEditing ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          type="text"
+                          value={editRoleStr}
+                          onChange={(e) => setEditRoleStr(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveRole()}
+                          className="bg-white border focus:ring-1 focus:ring-brand-teal text-brand-navy rounded px-2 py-1 flex-1 text-sm outline-none shadow-sm h-8"
+                          autoFocus
+                        />
+                        <button 
+                          onClick={handleSaveRole}
+                          className="bg-brand-teal text-white px-3 py-1 rounded text-xs font-bold hover:bg-brand-navy transition-all h-8 flex items-center shadow-sm"
+                        >
+                          Save
+                        </button>
+                        <button 
+                          onClick={() => setIsEditing(false)}
+                          className="bg-gray-100 text-gray-600 px-3 py-1 rounded text-xs font-bold hover:bg-gray-200 transition-all h-8 flex items-center shadow-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <p className="text-lg font-bold text-brand-navy">{selectedNode.role}</p>
+                        {isAdmin && (
+                           <button 
+                             onClick={() => { setIsEditing(true); setEditRoleStr(selectedNode.role); }}
+                             className="text-xs font-bold bg-brand-orange/10 text-brand-orange hover:bg-brand-orange hover:text-white transition-colors px-2 py-1 rounded shadow-sm"
+                           >
+                              Edit
+                           </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1">

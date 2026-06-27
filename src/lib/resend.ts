@@ -16,12 +16,40 @@ interface SendEmailParams {
   subject: string;
   html: string;
   from?: string;
+  attachments?: Array<{ filename: string; content: string }>; // base64 encoded content
 }
 
-export const sendEmail = async ({ to, subject, html, from }: SendEmailParams) => {
+export const sendEmail = async ({ to, subject, html, from, attachments }: SendEmailParams) => {
   try {
+    const resendApiKey = import.meta.env.VITE_RESEND_API_KEY;
+
+    // Use local proxy to bypass CORS if API key is available directly
+    if (resendApiKey) {
+      const res = await fetch('/api/resend/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${resendApiKey}`
+        },
+        body: JSON.stringify({
+          from: from || 'VyaraHR <onboarding@vyarahr.space>',
+          to: Array.isArray(to) ? to : [to],
+          subject,
+          html,
+          attachments
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to send email via proxy');
+      }
+      return { success: true, data };
+    }
+
+    // Fallback to Supabase Edge Function
     const { data, error } = await supabase.functions.invoke('send-email', {
-      body: { to, subject, html, from },
+      body: { to, subject, html, from, attachments },
     });
 
     if (error) {
@@ -30,8 +58,8 @@ export const sendEmail = async ({ to, subject, html, from }: SendEmailParams) =>
     }
 
     return { success: true, data };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Network Error while sending email:', error);
-    return { success: false, error: 'Network error' };
+    return { success: false, error: error.message || 'Network error' };
   }
 };

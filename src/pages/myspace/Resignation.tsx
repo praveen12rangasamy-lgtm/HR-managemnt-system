@@ -4,11 +4,13 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { CheckCircle, AlertCircle, Send, FileText, Upload, ShieldCheck, User, Award } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 const Resignation = () => {
   const { profile } = useAuth();
   const [resigned, setResigned] = useState(false);
   const [toast, setToast] = useState('');
+  const [requestId, setRequestId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ lwd: '', reason: '' });
   const [checklist, setChecklist] = useState<any>({
     resignation_letter: false,
@@ -19,71 +21,68 @@ const Resignation = () => {
     no_loans_pending: false
   });
 
-  const handleResign = (e: React.FormEvent) => {
+  const handleResign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
 
-    const requestId = `OFF-${Date.now()}`;
-    const request = {
-      id: requestId,
-      user_id: profile.id,
-      name: profile.full_name,
-      empId: profile.employeeId || profile.employee_id,
-      role: profile.role,
-      designation: profile.designation || 'Employee',
-      lwd: formData.lwd,
-      reason: formData.reason,
-      status: 'Pending',
-      submitted_at: new Date().toISOString(),
-      admin_context: 'praveen12rangasamy@gmail.com' // Tag with the specific admin identifier
-    };
+    try {
+      const { data, error } = await supabase
+        .from('resignations')
+        .insert({
+          user_id: profile.id,
+          lwd: formData.lwd,
+          reason: formData.reason,
+          status: 'Pending'
+        })
+        .select()
+        .single();
 
-    const existingRequests = JSON.parse(localStorage.getItem('hr_offboarding_requests') || '[]');
-    localStorage.setItem('hr_offboarding_requests', JSON.stringify([request, ...existingRequests]));
+      if (error) throw error;
 
-    const allChecklists = JSON.parse(localStorage.getItem('hr_offboarding_checklists') || '{}');
-    const newChecklist = {
-      resignation_letter: true,
-      lwd_confirmed: false,
-      assets_collected: false,
-      kt_completed: false,
-      no_dues_verified: false,
-      no_loans_pending: false
-    };
-    allChecklists[requestId] = newChecklist;
-    localStorage.setItem('hr_offboarding_checklists', JSON.stringify(allChecklists));
+      setRequestId(data.id);
+      setResigned(true);
+      setToast('Resignation request and documents sent for Admin approval! ✓');
+      setTimeout(() => setToast(''), 4000);
+    } catch (err: any) {
+      console.error("Error submitting resignation:", err.message);
+      setToast('Failed to submit: ' + err.message);
+    }
+  };
 
-    // Notify Admin
-    const notifications = JSON.parse(localStorage.getItem('hr_notifications') || '[]');
-    notifications.unshift({
-      id: `NOTIF-${Date.now()}`,
-      type: 'offboarding',
-      title: 'Resignation Request',
-      message: `${profile.full_name} (${profile.employeeId || profile.employee_id}) has submitted a resignation request.`,
-      time: 'Just now',
-      link: '/dashboard/offboarding'
-    });
-    localStorage.setItem('hr_notifications', JSON.stringify(notifications.slice(0, 10)));
-
-    setResigned(true);
-    setChecklist(newChecklist);
-    setToast('Resignation request and documents sent for Admin approval! ✓');
-    setTimeout(() => setToast(''), 4000);
+  const updateChecklist = async (newChecklist: any) => {
+    if (!requestId) return;
+    try {
+      const { error } = await supabase
+        .from('resignations')
+        .update({ checklist: newChecklist })
+        .eq('id', requestId);
+      if (error) throw error;
+      setChecklist(newChecklist);
+    } catch (err: any) {
+      console.error("Error updating checklist:", err.message);
+    }
   };
 
   useEffect(() => {
-    if (profile) {
-      const requests = JSON.parse(localStorage.getItem('hr_offboarding_requests') || '[]');
-      const myReq = requests.find((r: any) => r.user_id === profile.id);
-      if (myReq) {
-        setResigned(true);
-        setFormData({ lwd: myReq.lwd, reason: myReq.reason });
-        const allChecklists = JSON.parse(localStorage.getItem('hr_offboarding_checklists') || '{}');
-        if (allChecklists[myReq.id]) {
-          setChecklist(allChecklists[myReq.id]);
+    const fetchExisting = async () => {
+      if (profile) {
+        const { data, error } = await supabase
+          .from('resignations')
+          .select('*')
+          .eq('user_id', profile.id)
+          .maybeSingle();
+
+        if (data) {
+          setResigned(true);
+          setRequestId(data.id);
+          setFormData({ lwd: data.lwd, reason: data.reason });
+          if (data.checklist) {
+            setChecklist(data.checklist);
+          }
         }
       }
-    }
+    };
+    fetchExisting();
   }, [profile]);
 
   return (
@@ -210,13 +209,7 @@ const Resignation = () => {
                         onChange={(e) => {
                           if (e.target.files?.[0]) {
                             const updated = { ...checklist, [item.key]: true };
-                            setChecklist(updated);
-                            const allChecklists = JSON.parse(localStorage.getItem('hr_offboarding_checklists') || '{}');
-                            const myReqId = JSON.parse(localStorage.getItem('hr_offboarding_requests') || '[]').find((r: any) => r.user_id === profile?.id)?.id;
-                            if (myReqId) {
-                              allChecklists[myReqId] = updated;
-                              localStorage.setItem('hr_offboarding_checklists', JSON.stringify(allChecklists));
-                            }
+                            updateChecklist(updated);
                           }
                         }}
                         className="w-full text-[10px] text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-semibold file:bg-brand-teal/10 file:text-brand-teal hover:file:bg-brand-teal/20 cursor-pointer" 
@@ -230,13 +223,7 @@ const Resignation = () => {
                         disabled={resigned && checklist[item.key]}
                         onChange={(e) => {
                           const updated = { ...checklist, [item.key]: e.target.checked };
-                          setChecklist(updated);
-                          const allChecklists = JSON.parse(localStorage.getItem('hr_offboarding_checklists') || '{}');
-                          const myReqId = JSON.parse(localStorage.getItem('hr_offboarding_requests') || '[]').find((r: any) => r.user_id === profile?.id)?.id;
-                          if (myReqId) {
-                            allChecklists[myReqId] = updated;
-                            localStorage.setItem('hr_offboarding_checklists', JSON.stringify(allChecklists));
-                          }
+                          updateChecklist(updated);
                         }}
                         className="w-4 h-4 rounded border-gray-300 text-brand-teal focus:ring-brand-teal"
                       />

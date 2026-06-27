@@ -15,14 +15,11 @@ const HiringOnboarding = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
   const [showIdCreator, setShowIdCreator] = useState(false);
   const [allEmployees, setAllEmployees] = useState<any[]>([]);
+  const [customEmpId, setCustomEmpId] = useState('');
+  const [customPassword, setCustomPassword] = useState('Welcome@2024');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [applicants, setApplicants] = useState([
-    { id: 1, name: 'Michael Scott', email: 'mike@example.com', role: 'Sales Manager', match: 0, status: 'Applied', phone: '9876543210', empId: 'VYR-2024-001', resume: 'michael_scott_resume.pdf' },
-    { id: 2, name: 'Pam Beesly', email: 'pam@example.com', role: 'UX Designer', match: 0, status: 'Applied', phone: '9876543211', empId: 'VYR-2024-002', resume: 'pam_beesly_resume.pdf' },
-    { id: 3, name: 'Jim Halpert', email: 'jim@example.com', role: 'Sales Exec', match: 0, status: 'Applied', phone: '9876543212', empId: 'VYR-2024-003', resume: 'jim_halpert_resume.pdf' },
-    { id: 4, name: 'Dwight Schrute', email: 'dwight@example.com', role: 'Asst. to Regional Manager', match: 0, status: 'Applied', phone: '9876543213', empId: 'VYR-2024-004', resume: 'dwight_schrute_resume.pdf' }
-  ]);
+  const [applicants, setApplicants] = useState<any[]>([]);
 
   const showToast = (msg: string, type: 'info' | 'success' = 'info') => {
     setToast({ msg, type });
@@ -68,24 +65,29 @@ const HiringOnboarding = () => {
         .from('profiles')
         .select('id, full_name, employee_id, email, role, designation');
       
-      let unified = (supabaseProfiles || []).map((p: any) => ({
-        id: p.id,
-        name: p.full_name,
-        empId: p.employee_id,
-        email: p.email,
-        status: 'Selected'
-      }));
+      let unified = (supabaseProfiles || [])
+        .filter((p: any) => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com')
+        .map((p: any) => ({
+          id: p.id,
+          name: p.full_name,
+          empId: p.employee_id,
+          email: p.email,
+          status: 'Selected'
+        }));
 
       // 2. Get mock credentials from localStorage
       const mockCreds = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
-      const mockMapped = mockCreds.map((m: any) => ({
-        id: m.employeeId,
-        name: m.full_name,
-        empId: m.employeeId,
-        email: m.email,
-        status: 'Selected',
-        is_mock: true
-      }));
+      const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute'];
+      const mockMapped = mockCreds
+        .filter((m: any) => m.full_name && !mockOfficeNames.includes(m.full_name))
+        .map((m: any) => ({
+          id: m.employeeId,
+          name: m.full_name,
+          empId: m.employeeId,
+          email: m.email,
+          status: 'Selected',
+          is_mock: true
+        }));
 
       // 3. Current Selected applicants who might not be persisted yet
       const currentHired = applicants.filter(a => a.status === 'Selected').map(a => ({
@@ -109,6 +111,10 @@ const HiringOnboarding = () => {
   };
 
   useEffect(() => {
+    localStorage.removeItem('hr_employee_credentials');
+    localStorage.removeItem('hr_employee_submissions');
+    localStorage.removeItem('hr_applicants');
+    localStorage.removeItem('hr_notifications');
     if (activeTab === 'Onboarding') {
       fetchAllEmployees();
     }
@@ -128,8 +134,13 @@ const HiringOnboarding = () => {
 
   const handleR3Selection = (id: number, decision: string) => {
     if (decision === 'Selected') {
-      setSelectedCandidate(applicants.find(a => a.id === id));
+      const candidate = applicants.find(a => a.id === id);
+      setSelectedCandidate(candidate);
       setShowIdCreator(true);
+      if (candidate) {
+        setCustomEmpId(candidate.empId || `VYR-2024-00${candidate.id}`);
+        setCustomPassword('Welcome@2024');
+      }
     } else {
       setShowIdCreator(false);
       setSelectedCandidate(null);
@@ -138,12 +149,12 @@ const HiringOnboarding = () => {
 
   const confirmSelection = (id: number) => {
     const candidate = applicants.find(a => a.id === id);
-    const empId = `VYR-2024-00${id}`;
+    const empId = customEmpId || `VYR-2024-00${id}`;
+    const password = customPassword || "Welcome@2024";
 
     // Reset selection state
     setShowIdCreator(false);
     setSelectedCandidate(null);
-    const password = "Welcome@2024"; // Default as per UI
 
     // Persist for login simulation
     const credentials = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
@@ -156,7 +167,8 @@ const HiringOnboarding = () => {
     });
     localStorage.setItem('hr_employee_credentials', JSON.stringify(credentials));
 
-    setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected' } : a));
+    // Save custom empId and password directly on applicant record
+    setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected', empId: empId, password: password } : a));
     
     // Send actual email via Resend
     if (candidate?.email) {
@@ -184,8 +196,53 @@ const HiringOnboarding = () => {
           showToast(`Account created, but email failed: ${res.error}`, 'info');
         }
       });
-    } else {
-      showToast(`Employee account prepared for ${candidate?.name}`, 'success');
+    }
+  };
+
+  const handleSaveSetup = async () => {
+    if (!selectedCandidate) {
+      showToast("Please select a candidate to onboard.", "info");
+      return;
+    }
+
+    showToast("Creating employee account in Supabase...", "info");
+
+    try {
+      const empId = customEmpId || `VYR-2024-00${selectedCandidate.id}`;
+      const password = customPassword || "Welcome@2024";
+      
+      const session = (await supabase.auth.getSession()).data.session;
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          email: selectedCandidate.email,
+          password: password,
+          full_name: selectedCandidate.name,
+          designation: selectedCandidate.role,
+          gross_salary: "0",
+          employee_id: empId
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.status !== 200 || data.error) {
+        const errMsg = data.error || 'Failed to create employee account.';
+        showToast(`Error: ${errMsg}`, "info");
+        return;
+      }
+
+      showToast(`Onboarding setup complete! Employee account created for ${selectedCandidate.name}`, "success");
+      
+      // Refresh the employee list to show the newly created employee
+      await fetchAllEmployees();
+    } catch (err: any) {
+      console.error("Error invoking create-employee function:", err);
+      showToast(`Failed to create employee: ${err.message}`, "info");
     }
   };
 
@@ -355,6 +412,8 @@ const HiringOnboarding = () => {
                 className="hidden"
                 ref={fileInputRef}
                 onChange={handleCSVUpload}
+                title="Upload CSV File"
+                placeholder="Upload CSV File"
               />
               <Button 
                 onClick={() => fileInputRef.current?.click()}
@@ -492,21 +551,21 @@ const HiringOnboarding = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase">Meeting ID</label>
-                          <input type="text" className="w-full border p-2 text-sm rounded-lg outline-none" placeholder="e.g. vid-123-456" disabled={a.status === 'TechScheduled'} />
+                          <input type="text" className="w-full border p-2 text-sm rounded-lg outline-none" placeholder="e.g. vid-123-456" title="Meeting ID" disabled={a.status === 'TechScheduled'} />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase">Input PDF Questions</label>
-                          <input type="file" className="w-full text-[10px] text-gray-400" disabled={a.status === 'TechScheduled'} />
+                          <input type="file" className="w-full text-[10px] text-gray-400" title="Input PDF Questions" placeholder="Upload PDF Questions" disabled={a.status === 'TechScheduled'} />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase">Meeting Date</label>
-                          <input type="date" className="w-full border p-2 text-sm rounded-lg outline-none" disabled={a.status === 'TechScheduled'} />
+                          <input type="date" className="w-full border p-2 text-sm rounded-lg outline-none" title="Meeting Date" placeholder="Meeting Date" disabled={a.status === 'TechScheduled'} />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase">Meeting Timing</label>
-                          <input type="time" className="w-full border p-2 text-sm rounded-lg outline-none" disabled={a.status === 'TechScheduled'} />
+                          <input type="time" className="w-full border p-2 text-sm rounded-lg outline-none" title="Meeting Timing" placeholder="Meeting Timing" disabled={a.status === 'TechScheduled'} />
                         </div>
                       </div>
                     </div>
@@ -577,6 +636,7 @@ const HiringOnboarding = () => {
                             <select 
                               className="border rounded-lg px-3 py-2 text-sm bg-gray-50 font-medium"
                               onChange={(e) => handleR3Selection(a.id, e.target.value)}
+                              title="Decide Candidate Selection"
                             >
                               <option value="">Decide</option>
                               <option value="Selected">Select Candidate</option>
@@ -596,11 +656,25 @@ const HiringOnboarding = () => {
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-emerald-700 uppercase">Employee ID</label>
-                            <input type="text" className="w-full border-brand-teal/30 bg-white border p-2 rounded-lg text-sm font-mono font-bold" defaultValue={`VYR-2024-00${a.id}`} />
+                            <input 
+                              type="text" 
+                              className="w-full border-brand-teal/30 bg-white border p-2 rounded-lg text-sm font-mono font-bold" 
+                              value={customEmpId} 
+                              onChange={(e) => setCustomEmpId(e.target.value)} 
+                              placeholder="Employee ID"
+                              title="Employee ID"
+                            />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-emerald-700 uppercase">Initial Password</label>
-                            <input type="text" className="w-full border-brand-teal/30 bg-white border p-2 rounded-lg text-sm" defaultValue="Welcome@2024" />
+                            <input 
+                              type="text" 
+                              className="w-full border-brand-teal/30 bg-white border p-2 rounded-lg text-sm" 
+                              value={customPassword} 
+                              onChange={(e) => setCustomPassword(e.target.value)} 
+                              placeholder="Initial Password"
+                              title="Initial Password"
+                            />
                           </div>
                         </div>
                         <p className="text-[10px] text-gray-500 italic">* This ID and Password will be attached to the offer letter PDF.</p>
@@ -626,18 +700,32 @@ const HiringOnboarding = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                      <div className="space-y-2">
                        <label className="text-xs font-bold text-gray-400 uppercase">Selected Candidate</label>
-                       <div className="p-3 bg-brand-navy/5 rounded-xl font-bold text-brand-navy border border-brand-navy/10 flex items-center gap-2">
-                         <UserPlus size={18} className="text-brand-teal"/>
-                         {selectedCandidate ? selectedCandidate.name : 'No candidate selected'}
-                       </div>
+                       <select
+                         className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none font-bold text-brand-navy bg-white"
+                         value={selectedCandidate?.id || ''}
+                         onChange={(e) => {
+                           const cand = applicants.find(a => a.id === Number(e.target.value));
+                           setSelectedCandidate(cand || null);
+                           if (cand) {
+                             setCustomEmpId(cand.empId || `VYR-2024-00${cand.id}`);
+                             setCustomPassword(cand.password || 'Welcome@2024');
+                           }
+                         }}
+                         title="Selected Candidate"
+                       >
+                         <option value="">-- Select Candidate --</option>
+                         {applicants.filter(a => a.status === 'Selected').map(a => (
+                           <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
+                         ))}
+                       </select>
                      </div>
                      <div className="space-y-2">
                        <label className="text-xs font-bold text-gray-400 uppercase">Joining Date</label>
-                       <input type="date" className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none" defaultValue="2024-04-01" />
+                       <input type="date" className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none" defaultValue="2024-04-01" title="Joining Date" placeholder="Joining Date" />
                      </div>
                      <div className="space-y-2">
                        <label className="text-xs font-bold text-gray-400 uppercase">Department</label>
-                       <select className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none">
+                       <select className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none" title="Department">
                          <option>Design</option>
                          <option>Engineering</option>
                          <option>Product</option>
@@ -645,9 +733,36 @@ const HiringOnboarding = () => {
                        </select>
                      </div>
                   </div>
+
+                  {selectedCandidate && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t pt-6 animate-in fade-in slide-in-from-top-2">
+                       <div className="space-y-2">
+                         <label className="text-xs font-bold text-brand-teal uppercase">Employee ID (Username)</label>
+                         <input 
+                           type="text" 
+                           className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none font-mono font-bold" 
+                           value={customEmpId} 
+                           onChange={(e) => setCustomEmpId(e.target.value)} 
+                           placeholder="e.g. VYR-2024-001"
+                           title="Employee ID"
+                         />
+                       </div>
+                       <div className="space-y-2">
+                         <label className="text-xs font-bold text-brand-teal uppercase">Initial Password</label>
+                         <input 
+                           type="text" 
+                           className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none font-bold" 
+                           value={customPassword} 
+                           onChange={(e) => setCustomPassword(e.target.value)} 
+                           placeholder="Initial Password"
+                           title="Initial Password"
+                         />
+                       </div>
+                    </div>
+                  )}
                   
                   <div className="flex justify-end gap-4 border-t pt-8">
-                    <Button className="gap-2 px-8 h-12 bg-brand-navy hover:bg-black transition-all" onClick={() => showToast(`Onboarding parameters saved for ${selectedCandidate?.name || 'employee'}`, 'success')}>
+                    <Button className="gap-2 px-8 h-12 bg-brand-navy hover:bg-black transition-all" onClick={handleSaveSetup}>
                       <UserPlus size={20}/> Save Setup & Proceed
                     </Button>
                   </div>

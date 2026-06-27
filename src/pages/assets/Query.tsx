@@ -10,11 +10,7 @@ const Query = () => {
 
   // Initial mock data
   useEffect(() => {
-    const initialQueries = [
-      { id: 1, employee: 'John Doe', asset: 'MacBook Pro 16"', type: 'Damaged / Broken', description: 'Screen flickering after fall.', status: 'Pending', date: '2026-03-14' },
-      { id: 2, employee: 'Michael Chen', asset: 'Dell Monitor', type: 'Not Working', description: 'Monitor does not power on.', status: 'Pending', date: '2026-03-15' },
-      { id: 3, employee: 'Sarah Miller', asset: 'Sony Headset', type: 'Other', description: 'Bluetooth connection is unstable.', status: 'Resolved', date: '2026-03-12' },
-    ];
+    const initialQueries: any[] = [];
     setQueries(JSON.parse(localStorage.getItem('asset_queries') || JSON.stringify(initialQueries)));
   }, []);
 
@@ -43,14 +39,14 @@ const Query = () => {
 
   return (
     <div className="space-y-6 max-w-7xl animate-in fade-in duration-500">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div>
           <h2 className="text-2xl font-bold text-brand-navy flex items-center gap-2">
             <AlertCircle size={24} className="text-status-amber" /> Asset Queries & Issues
           </h2>
           <p className="text-sm text-gray-500 mt-1">Review and resolve hardware/software issues reported by employees.</p>
         </div>
-        <div className="relative w-80">
+        <div className="relative w-full sm:w-80">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input 
             type="text" 

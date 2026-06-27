@@ -23,6 +23,18 @@ const Leaves = () => {
   // Admin view state: all employee leave requests from DB
   const [adminRequests, setAdminRequests] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
+  const [upcomingHolidays, setUpcomingHolidays] = useState<any[]>([]);
+  const [holidaysLoading, setHolidaysLoading] = useState(true);
+
+  // Leave balance: total allocation minus approved days used
+  const LEAVE_ALLOCATIONS: Record<string, { label: string; total: number; color: string; barColor: string }> = {
+    casual:  { label: 'Casual Leave',  total: 12, color: 'text-brand-teal',    barColor: 'bg-brand-teal' },
+    sick:    { label: 'Sick Leave',    total: 7,  color: 'text-status-amber',  barColor: 'bg-status-amber' },
+    earned:  { label: 'Earned Leave',  total: 18, color: 'text-brand-navy',    barColor: 'bg-brand-navy' },
+    unpaid:  { label: 'Unpaid Leave',  total: 0,  color: 'text-rose-500',      barColor: 'bg-rose-400' },
+  };
+  const [leaveBalance, setLeaveBalance] = useState<Record<string, number>>({});
+  const [balanceLoading, setBalanceLoading] = useState(true);
 
   useEffect(() => {
     if (isAdmin) {
@@ -30,7 +42,58 @@ const Leaves = () => {
     } else {
       fetchRequests();
     }
+    fetchUpcomingHolidays();
+    if (!isAdmin) fetchLeaveBalance();
   }, [isAdmin, profile]);
+
+  const fetchLeaveBalance = async () => {
+    if (!profile?.id) return;
+    setBalanceLoading(true);
+    const year = new Date().getFullYear();
+    const yearStart = `${year}-01-01`;
+    const yearEnd   = `${year}-12-31`;
+
+    const { data, error } = await supabase
+      .from('leave_requests')
+      .select('type, start_date, end_date')
+      .eq('user_id', profile.id)
+      .eq('status', 'approved')
+      .gte('start_date', yearStart)
+      .lte('end_date', yearEnd);
+
+    const used: Record<string, number> = {};
+    if (!error && data) {
+      data.forEach((req: any) => {
+        const days = Math.max(1,
+          Math.round((new Date(req.end_date).getTime() - new Date(req.start_date).getTime()) / 86400000) + 1
+        );
+        used[req.type] = (used[req.type] || 0) + days;
+      });
+    }
+    setLeaveBalance(used);
+    setBalanceLoading(false);
+  };
+
+  const fetchUpcomingHolidays = async () => {
+    setHolidaysLoading(true);
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    // Last day of the current month
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const lastDayStr = lastDayOfMonth.toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .select('id, title, date, description')
+      .eq('category', 'Company Holidays')
+      .gte('date', todayStr)
+      .lte('date', lastDayStr)
+      .order('date', { ascending: true });
+    if (!error && data) {
+      setUpcomingHolidays(data);
+    }
+    setHolidaysLoading(false);
+  };
 
   const fetchAdminRequests = async () => {
     setLoading(true);
@@ -47,18 +110,21 @@ const Leaves = () => {
       const userIds = [...new Set(leaveData.map((r: any) => r.user_id))];
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, full_name, employee_id, designation')
-        .in('id', userIds);
+        .select('id, full_name, employee_id, designation, hired_by')
+        .in('id', userIds)
+        .ilike('hired_by', profile?.email?.trim() || ''); // Only get profiles hired by this admin
 
       const profileMap = (profileData || []).reduce((acc: any, p: any) => {
         acc[p.id] = p;
         return acc;
       }, {});
 
-      finalRequests = leaveData.map((r: any) => ({
-        ...r,
-        profiles: profileMap[r.user_id] || null,
-      }));
+      finalRequests = leaveData
+        .filter((r: any) => profileMap[r.user_id]) // Only keep requests where profile matches admin
+        .map((r: any) => ({
+          ...r,
+          profiles: profileMap[r.user_id] || null,
+        }));
     }
 
     // Fetch localStorage mock requests
@@ -85,20 +151,14 @@ const Leaves = () => {
     if (!profile) return;
     setLoading(true);
 
-    if (profile.is_mock || profile.id?.toString().startsWith('VYR-')) {
-      const mockLeaves = JSON.parse(localStorage.getItem('hr_leave_requests') || '[]');
-      const filtered = mockLeaves.filter((l: any) => l.user_id === profile.id);
-      setRequests(filtered);
-    } else {
-      const { data, error } = await supabase
-        .from('leave_requests')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false });
-      
-      if (!error && data) {
-        setRequests(data);
-      }
+    const { data, error } = await supabase
+      .from('leave_requests')
+      .select('*')
+      .eq('user_id', profile.id)
+      .order('created_at', { ascending: false });
+    
+    if (!error && data) {
+      setRequests(data);
     }
     setLoading(false);
   };
@@ -108,28 +168,7 @@ const Leaves = () => {
     if (!profile) return;
     setLoading(true);
     
-    // Check if user is mock
-    if (profile.is_mock || profile.id?.toString().startsWith('VYR-')) {
-      const mockReq = {
-        id: `LR-${Date.now()}`,
-        user_id: profile.id,
-        name: profile.full_name,
-        empId: profile.employee_id,
-        type: formData.type,
-        start_date: formData.startDate,
-        end_date: formData.endDate,
-        reason: formData.reason,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      };
-
-      const existing = JSON.parse(localStorage.getItem('hr_leave_requests') || '[]');
-      localStorage.setItem('hr_leave_requests', JSON.stringify([mockReq, ...existing]));
-      
-      setToast('✓ Leave request submitted (Mock System)!');
-      setFormData({ type: '', startDate: '', endDate: '', reason: '' });
-      await fetchRequests(); // Refresh for employee view
-    } else {
+    try {
       const { error } = await supabase
         .from('leave_requests')
         .insert({
@@ -149,6 +188,10 @@ const Leaves = () => {
         setFormData({ type: '', startDate: '', endDate: '', reason: '' });
         await fetchRequests();
       }
+    } catch (err) {
+      setToast('❌ Unexpected error.');
+    } finally {
+      setLoading(false);
     }
     
     setLoading(false);
@@ -351,44 +394,38 @@ const Leaves = () => {
         </div>
       )}
 
-      <h2 className="text-2xl font-bold text-brand-navy">Leaves Management</h2>
+      <h2 className="text-4xl font-bold text-brand-navy tracking-tight">Leaves Management</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Leave Balances (2026)</CardTitle>
+              <CardTitle>Leave Balances ({new Date().getFullYear()})</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div>
-                <div className="flex justify-between mb-1 text-sm">
-                  <span className="font-semibold text-gray-700">Casual Leave</span>
-                  <span className="text-brand-teal font-bold">8 / 12 Days</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-brand-teal h-2.5 rounded-full" style={{ width: '66%' }}></div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-1 text-sm">
-                  <span className="font-semibold text-gray-700">Sick Leave</span>
-                  <span className="text-status-amber font-bold">4 / 7 Days</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-status-amber h-2.5 rounded-full" style={{ width: '57%' }}></div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-1 text-sm">
-                  <span className="font-semibold text-gray-700">Earned Leave</span>
-                  <span className="text-brand-navy font-bold">15 / 18 Days</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div className="bg-brand-navy h-2.5 rounded-full" style={{ width: '83%' }}></div>
-                </div>
-              </div>
+              {balanceLoading ? (
+                <p className="text-xs text-gray-400 text-center py-4">Loading balances...</p>
+              ) : (
+                Object.entries(LEAVE_ALLOCATIONS)
+                  .filter(([, cfg]) => cfg.total > 0) // skip unpaid (no cap)
+                  .map(([type, cfg]) => {
+                    const used = leaveBalance[type] || 0;
+                    const remaining = Math.max(0, cfg.total - used);
+                    const pct = Math.min(100, Math.round((remaining / cfg.total) * 100));
+                    return (
+                      <div key={type}>
+                        <div className="flex justify-between mb-1 text-sm">
+                          <span className="font-semibold text-gray-700">{cfg.label}</span>
+                          <span className={`${cfg.color} font-bold`}>{remaining} / {cfg.total} Days</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div className={`${cfg.barColor} h-2.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">{used} day{used !== 1 ? 's' : ''} used</p>
+                      </div>
+                    );
+                  })
+              )}
             </CardContent>
           </Card>
 
@@ -490,21 +527,41 @@ const Leaves = () => {
           
           <Card>
             <CardHeader>
-              <CardTitle>Upcoming Holidays</CardTitle>
+              <CardTitle>
+                Holidays — {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-3">
-                <li className="flex justify-between items-center p-3 bg-gray-50 rounded-md border border-gray-100">
-                  <div className="flex gap-3 items-center">
-                    <CalIcon size={18} className="text-gray-400" />
-                    <span className="font-medium">Diwali</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">Oct 24, 2026</p>
-                    <p className="text-xs text-gray-500">Thursday</p>
-                  </div>
-                </li>
-              </ul>
+              {holidaysLoading ? (
+                <p className="text-xs text-gray-400 text-center py-4">Loading holidays...</p>
+              ) : upcomingHolidays.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4 italic">No holidays this month.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {upcomingHolidays.map((holiday) => {
+                    const dateObj = new Date(holiday.date + 'T00:00:00');
+                    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                    const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    return (
+                      <li key={holiday.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-md border border-gray-100">
+                        <div className="flex gap-3 items-center">
+                          <CalIcon size={18} className="text-brand-teal shrink-0" />
+                          <div>
+                            <span className="font-medium text-brand-navy text-sm">{holiday.title}</span>
+                            {holiday.description && (
+                              <p className="text-[10px] text-gray-400 mt-0.5">{holiday.description}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 ml-3">
+                          <p className="text-sm font-semibold text-gray-700">{formattedDate}</p>
+                          <p className="text-xs text-gray-500">{dayName}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </div>

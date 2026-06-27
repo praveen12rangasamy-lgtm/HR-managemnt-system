@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Bell, User } from 'lucide-react';
-import { Badge } from '../ui/Badge';
 
-const Header = () => {
+interface HeaderProps {
+  isMobile?: boolean;
+}
+
+const Header: React.FC<HeaderProps> = ({ isMobile }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -30,11 +33,8 @@ const Header = () => {
     };
 
     checkNotifications();
-    
-    // Check every 30 seconds for new updates
     const interval = setInterval(checkNotifications, 30000);
     
-    // Reset count if we are on the updates page
     if (path === '/dashboard/updates') {
       localStorage.setItem('hr_notifications_last_checked', Date.now().toString());
       setNotifCount(0);
@@ -52,42 +52,36 @@ const Header = () => {
       ...(isAdmin ? [
         { name: 'Post Job', path: '/dashboard/updates' },
         { name: 'Hiring & Onboarding', path: '/dashboard/hiring' },
-        { name: 'Offboarding', path: '/dashboard/offboarding' },
-        { name: 'Role Hierarchy', path: '/dashboard/hierarchy' }
+        { name: 'Offboarding', path: '/dashboard/offboarding' }
       ] : [])
     ];
   } 
-  // My Space Section
-  else if (path.includes('/myspace') || path.includes('/profile') || path.includes('/attendance') || path.includes('/leaves') || path.includes('/helpdesk')) {
-    subMenuItems = [
-      { name: 'My Profile', path: '/dashboard/myspace/profile' },
-      { name: 'Attendance', path: '/dashboard/myspace/attendance' },
-      { name: 'Leaves', path: '/dashboard/myspace/leaves' },
-      ...(!isAdmin ? [{ name: 'Offboarding', path: '/dashboard/myspace/resignation' }] : []),
-      { name: 'Help Desk', path: '/dashboard/myspace/helpdesk' }
-    ];
-  } 
-  // Finance Section
   else if (path.includes('/finance')) {
     subMenuItems = [
       { name: 'Pay & Docs', path: '/dashboard/finance' },
       { name: 'Loans', path: '/dashboard/finance/loans' },
-      ...(!isAdmin ? [{ name: 'Tax Info', path: '/dashboard/finance/tax' }] : [])
+      { name: 'Tax Info', path: '/dashboard/finance/tax' }
     ];
   } 
-  // Assets Section
+  else if (path.includes('/myspace')) {
+    subMenuItems = [
+      { name: 'My Profile', path: '/dashboard/myspace/profile' },
+      { name: 'Attendance', path: '/dashboard/myspace/attendance' },
+      { name: 'Leaves', path: '/dashboard/myspace/leaves' },
+      { name: 'Help Desk', path: '/dashboard/myspace/helpdesk' }
+    ];
+  }
   else if (path.includes('/assets')) {
     subMenuItems = [
-      { name: 'Equipment', path: '/dashboard/assets/equipment' },
-      ...(!isAdmin ? [{ name: 'Report Issue', path: '/dashboard/assets/equipment' }] : []),
-      ...(isAdmin ? [{ name: 'Query', path: '/dashboard/assets/query' }] : [])
+      { name: 'My Equipment', path: '/dashboard/assets' },
+      ...(isAdmin ? [{ name: 'Asset Queries', path: '/dashboard/assets/query' }] : [])
     ];
-  } 
-  // Performance Section
-  else if (path.includes('/performance')) {
-    subMenuItems = [];
   }
-  // Settings Section
+  else if (path.includes('/performance')) {
+    subMenuItems = [
+      { name: 'Performance Overview', path: '/dashboard/performance' }
+    ];
+  }
   else if (path.includes('/settings')) {
     subMenuItems = [
       { name: 'Account settings', path: '/dashboard/settings' }
@@ -95,44 +89,84 @@ const Header = () => {
   }
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10 w-full shrink-0">
-      <div className="flex h-16 items-center justify-between px-8">
-        <nav className="flex space-x-8 h-full items-center">
-          {subMenuItems.map(item => {
-            const isActive = path === item.path || (item.path !== '/dashboard' && path.startsWith(item.path));
-            return (
-              <Link 
-                key={item.name} 
-                to={item.path}
-                className={`text-sm font-medium transition-colors border-b-2 h-full flex items-center px-1 ${isActive ? 'border-brand-orange text-brand-navy' : 'border-transparent text-gray-500 hover:text-brand-navy hover:border-gray-300'}`}
-              >
-                {item.name}
-              </Link>
-            )
-          })}
-        </nav>
+    <div className={`sticky top-0 z-[100] w-full ${isMobile ? 'flex flex-col' : ''}`}>
+      {/* MAIN TOPBAR */}
+      <header className={`bg-white border-b border-gray-200 h-16 flex items-center px-4 md:px-8 justify-between w-full shadow-sm`}>
+        {/* Mobile Left: Space for hamburger button handled by Layout */}
+        {isMobile && <div className="w-10" />}
 
-        <div className="flex items-center gap-4">
-          <Link to="/dashboard/updates" className="relative p-2 text-gray-400 hover:text-brand-orange hover:bg-brand-orange/5 rounded-full transition-all group">
-            <Bell size={22} className="group-hover:rotate-12 transition-transform" />
+        {/* Center: Logo (Mobile) or Nav (Desktop) */}
+        {!isMobile ? (
+          <nav className="flex space-x-8 h-full items-center">
+            {subMenuItems.map(item => {
+              const isActive = path === item.path || (item.path !== '/dashboard' && path.startsWith(item.path));
+              return (
+                <Link 
+                  key={item.name} 
+                  to={item.path}
+                  className={`text-sm font-medium transition-all border-b-2 h-full flex items-center px-1 ${
+                    isActive ? 'border-brand-orange text-brand-navy' : 'border-transparent text-gray-500 hover:text-brand-navy hover:border-gray-200'
+                  }`}
+                >
+                  {item.name}
+                </Link>
+              )
+            })}
+          </nav>
+        ) : (
+          <div className="flex items-center">
+            <h1 className="text-lg font-bold tracking-tight">
+              <span className="text-brand-navy">Vyara</span><span className="text-brand-orange">HR</span>
+            </h1>
+          </div>
+        )}
+
+        {/* Right Side */}
+        <div className="flex items-center gap-3">
+          <Link to="/dashboard/updates" className="relative p-2 text-gray-400 hover:text-brand-orange transition-all">
+            <Bell size={20} />
             {notifCount > 0 && (
-              <span className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white animate-in zoom-in duration-300">
+              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-status-red text-[8px] font-bold text-white ring-1 ring-white">
                 {notifCount}
               </span>
             )}
           </Link>
 
           <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
-            <div className="w-6 h-6 rounded-full bg-brand-orange/10 flex items-center justify-center text-brand-orange">
-              <User size={14} />
+            <div className={`rounded-full bg-brand-orange/10 flex items-center justify-center text-brand-orange font-bold ${isMobile ? 'w-8 h-8 text-xs' : 'w-7 h-7 text-[10px]'}`}>
+              {profile?.full_name?.charAt(0) || 'U'}
             </div>
-            <span className="text-sm font-medium text-brand-navy truncate max-w-[120px]">
-              {profile?.full_name || 'User'}
-            </span>
+            {!isMobile && (
+              <span className="text-sm font-semibold text-brand-navy truncate max-w-[100px]">
+                {profile?.full_name || 'User'}
+              </span>
+            )}
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* MOBILE SUBMENU TABS (Below Topbar) */}
+      {isMobile && subMenuItems.length > 0 && (
+        <nav className="h-11 bg-white border-b border-gray-200 flex items-center px-4 gap-2 overflow-x-auto scrollbar-none whitespace-nowrap">
+          {subMenuItems.map(item => {
+            const isActive = path === item.path || (item.path !== '/dashboard' && path.startsWith(item.path));
+            return (
+              <Link 
+                key={item.name} 
+                to={item.path}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                  isActive 
+                    ? 'bg-brand-orange/15 text-brand-orange border-brand-orange/30' 
+                    : 'bg-gray-50 text-gray-400 border-transparent'
+                }`}
+              >
+                {item.name}
+              </Link>
+            )
+          })}
+        </nav>
+      )}
+    </div>
   );
 }
 

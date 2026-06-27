@@ -9,14 +9,15 @@ const Profile = () => {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-brand-navy">My Profile</h2>
+      <div className="flex flex-wrap justify-between items-start gap-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-brand-navy">My Profile</h2>
         {isAdmin ? (
-          <Badge variant="blue" className="px-4 py-1.5 font-bold shadow-sm">Administrator Access Control</Badge>
+          <Badge variant="blue" className="px-3 sm:px-4 py-1.5 font-bold shadow-sm text-xs">Administrator Access Control</Badge>
         ) : (
           <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
-            <Info size={14} className="text-brand-teal" />
-            <span>For profile corrections, please raise a ticket in Help Desk</span>
+            <Info size={14} className="text-brand-teal flex-shrink-0" />
+            <span className="hidden sm:inline">For profile corrections, please raise a ticket in Help Desk</span>
+            <span className="sm:hidden">Raise a Help Desk ticket for corrections</span>
           </div>
         )}
       </div>
@@ -28,7 +29,7 @@ const Profile = () => {
               <div className="w-32 h-32 rounded-full border-4 border-brand-bg overflow-hidden shadow-sm mb-4">
                 <img src={isAdmin ? "https://i.pravatar.cc/150?img=68" : "https://i.pravatar.cc/150?img=12"} alt="Profile" className="w-full h-full object-cover" />
               </div>
-              <h3 className="text-xl font-bold text-brand-navy">{profile?.full_name || (isAdmin ? 'Admin User' : 'Jane Doe')}</h3>
+              <h3 className="text-xl font-bold text-brand-navy">{profile?.full_name || (isAdmin ? 'Admin User' : 'Employee')}</h3>
               <p className="text-brand-teal font-medium">{isAdmin ? 'Administrator' : 'Senior UX Designer'}</p>
               <Badge variant="neutral" className="mt-2 text-xs">ID: {profile?.employee_id || (isAdmin ? 'ADM-001' : 'VYR-2023-0105')}</Badge>
             </CardContent>

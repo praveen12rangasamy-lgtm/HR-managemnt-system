@@ -3,21 +3,43 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Linkedin, Briefcase, Bell, Info, Megaphone, Pencil, Trash2, X, FileText } from 'lucide-react';
+import { getRelativeTime } from '../../lib/timeHelper';
 import { useAuth } from '../../context/AuthContext';
 import { jsPDF } from 'jspdf';
 
+interface Job {
+  id: number;
+  title: string;
+  department: string;
+  type: string;
+  salary: string;
+  status: string;
+  Applied: number;
+  description: string;
+  summary?: string;
+  eligibility?: string;
+}
+
 const Updates = () => {
   const { profile } = useAuth();
-  const [jobs, setJobs] = useState([
-    { id: 1, title: 'Senior React Developer', department: 'Engineering', type: 'Remote', salary: '₹ 12L - 15L', status: 'Active',Applied: 4, description: 'We are looking for a senior developer to lead our frontend initiatives.' },
-    { id: 2, title: 'UX Designer', department: 'Design', type: 'Full-time', salary: '₹ 8L - 10L', status: 'Active',Applied: 2, description: 'Join our design team to create world-class HR experiences.' }
-  ]);
+  const [jobs, setJobs] = useState<Job[]>(() => {
+    const saved = localStorage.getItem('hr_jobs');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 1, title: 'Senior React Developer', department: 'Engineering', type: 'Remote', salary: '₹ 12L - 15L', status: 'Active', Applied: 4, description: 'We are looking for a senior developer to lead our frontend initiatives.' },
+      { id: 2, title: 'UX Designer', department: 'Design', type: 'Full-time', salary: '₹ 8L - 10L', status: 'Active', Applied: 2, description: 'Join our design team to create world-class HR experiences.' }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('hr_jobs', JSON.stringify(jobs));
+  }, [jobs]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [toast, setToast] = useState('');
   const [postToLinkedin, setPostToLinkedin] = useState(false);
   const [customDept, setCustomDept] = useState('');
   const [deptValue, setDeptValue] = useState('Engineering');
-  const [editingJob, setEditingJob] = useState<any | null>(null);
+  const [editingJob, setEditingJob] = useState<Job | null>(null);
 
   useEffect(() => {
     const notifications = JSON.parse(localStorage.getItem('hr_notifications') || '[]');
@@ -59,7 +81,7 @@ const Updates = () => {
       type: 'recruitment',
       title: 'New Job Opening',
       message: `${title} is now open for applications${postToLinkedin ? ' (Posted on LinkedIn)' : ''}.`,
-      time: 'Just now'
+      time: new Date().toISOString()
     });
     localStorage.setItem('hr_notifications', JSON.stringify(notifications));
     setAnnouncements(notifications);
@@ -83,6 +105,7 @@ const Updates = () => {
 
   const handleEditSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingJob) return;
     const formData = new FormData(e.target as HTMLFormElement);
     setJobs(prev => prev.map(j =>
       j.id === editingJob.id
@@ -183,15 +206,15 @@ const Updates = () => {
                <CardContent className="p-0">
                   <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
                     {announcements.length > 0 ? announcements.map((n) => (
-                      <div key={n.id} className="p-6 hover:bg-gray-50 transition-colors group">
+                      <div key={n.id} className="p-6 hover:bg-gray-50 transition-colors group relative">
                         <div className="flex gap-4">
                           <div className={`p-3 rounded-xl shrink-0 ${n.type === 'recruitment' ? 'bg-brand-teal/10 text-brand-teal' : 'bg-brand-navy/5 text-brand-navy'}`}>
                             <Info size={24} />
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-1 w-full">
                             <div className="flex justify-between items-center">
                               <h4 className="font-bold text-brand-navy group-hover:text-black">{n.title}</h4>
-                              <span className="text-[10px] font-bold text-gray-400 uppercase">{n.time}</span>
+                              <span className="text-[10px] font-bold text-gray-400 uppercase">{getRelativeTime(n.time)}</span>
                             </div>
                             <p className="text-sm text-gray-600 leading-relaxed">{n.message}</p>
                             {n.type === 'recruitment' && (
@@ -297,6 +320,7 @@ const Updates = () => {
         </div>
       )}
 
+      {/* View Job Template Modal */}
       <h2 className="text-2xl font-bold text-brand-navy">Recruitment Updates (Admin)</h2>
 
       <Card>
@@ -305,9 +329,9 @@ const Updates = () => {
         </CardHeader>
         <CardContent>
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="flex gap-8">
+            <div className="flex flex-col md:flex-row gap-8">
               {/* Left Side: LinkedIn Selector */}
-              <div className="w-48 shrink-0 flex flex-col items-center justify-start py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 gap-4">
+              <div className="w-full md:w-48 shrink-0 flex flex-col items-center justify-start py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 gap-4">
                 <div className={`p-4 rounded-xl transition-all cursor-pointer border-2 ${postToLinkedin ? 'bg-[#0077b5] border-[#0077b5] text-white' : 'bg-white border-gray-200 text-gray-400'}`} onClick={() => setPostToLinkedin(!postToLinkedin)}>
                   <Linkedin size={32} />
                 </div>
@@ -321,13 +345,15 @@ const Updates = () => {
               {/* Right Side: Form Content */}
               <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
-                  <input name="jobTitle" type="text" className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal" placeholder="e.g. UX Designer" required />
+                  <label htmlFor="create-job-title" className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                  <input id="create-job-title" name="jobTitle" type="text" className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal" placeholder="e.g. UX Designer" required />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <label htmlFor="create-job-dept" className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                   <select
+                    id="create-job-dept"
+                    title="Department"
                     className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal"
                     value={deptValue}
                     onChange={e => setDeptValue(e.target.value)}
@@ -342,6 +368,8 @@ const Updates = () => {
                   </select>
                   {deptValue === 'Custom' && (
                     <input
+                      id="create-job-dept-custom"
+                      aria-label="Custom Department Name"
                       type="text"
                       className="w-full border border-brand-teal rounded-md p-2 mt-2 text-sm focus:ring-brand-teal outline-none"
                       placeholder="Type custom department name..."
@@ -353,14 +381,14 @@ const Updates = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Salary Range (Annual)</label>
+                  <span className="block text-sm font-medium text-gray-700 mb-1">Salary Range (Annual)</span>
                   <div className="flex gap-2 items-center">
-                    <select name="minSalary" className="w-full border border-gray-300 rounded-md p-2 text-sm" required>
+                    <select name="minSalary" aria-label="Minimum Annual Salary" title="Minimum Annual Salary" className="w-full border border-gray-300 rounded-md p-2 text-sm" required>
                       <option value="">Min</option>
                       {salaryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                     <span>-</span>
-                    <select name="maxSalary" className="w-full border border-gray-300 rounded-md p-2 text-sm" required>
+                    <select name="maxSalary" aria-label="Maximum Annual Salary" title="Maximum Annual Salary" className="w-full border border-gray-300 rounded-md p-2 text-sm" required>
                       <option value="">Max</option>
                       {salaryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
@@ -368,8 +396,8 @@ const Updates = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
-                  <select name="type" className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal">
+                  <label htmlFor="create-job-type" className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+                  <select id="create-job-type" name="type" title="Employment Type" className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal">
                     <option>Full-time</option>
                     <option>Part-time</option>
                     <option>Remote</option>
@@ -525,23 +553,23 @@ const Updates = () => {
             <CardHeader className="border-b">
               <div className="flex justify-between items-center">
                 <CardTitle>Edit Job Posting</CardTitle>
-                <button onClick={() => setEditingJob(null)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
+                <button onClick={() => setEditingJob(null)} className="text-gray-400 hover:text-gray-700" aria-label="Close modal" title="Close modal"><X size={20} /></button>
               </div>
             </CardHeader>
             <CardContent className="p-6">
               <form onSubmit={handleEditSave} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
-                  <input name="editTitle" defaultValue={editingJob.title} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" required />
+                  <label htmlFor="edit-job-title" className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                  <input id="edit-job-title" name="editTitle" defaultValue={editingJob.title} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                    <input name="editDept" defaultValue={editingJob.department} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" required />
+                    <label htmlFor="edit-job-dept" className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <input id="edit-job-dept" name="editDept" defaultValue={editingJob.department} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
-                    <select name="editType" defaultValue={editingJob.type} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal">
+                    <label htmlFor="edit-job-type" className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+                    <select id="edit-job-type" name="editType" title="Employment Type" defaultValue={editingJob.type} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal">
                       <option>Full-time</option>
                       <option>Part-time</option>
                       <option>Remote</option>
@@ -553,12 +581,12 @@ const Updates = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Salary</label>
-                    <input name="editMin" defaultValue={editingJob.salary?.split(' - ')[0]?.replace('₹ ','')} className="w-full border border-gray-300 rounded-md p-2 text-sm" required />
+                    <label htmlFor="edit-job-min" className="block text-sm font-medium text-gray-700 mb-1">Min Salary</label>
+                    <input id="edit-job-min" name="editMin" defaultValue={editingJob.salary?.split(' - ')[0]?.replace('₹ ','')} className="w-full border border-gray-300 rounded-md p-2 text-sm" required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Salary</label>
-                    <input name="editMax" defaultValue={editingJob.salary?.split(' - ')[1]} className="w-full border border-gray-300 rounded-md p-2 text-sm" required />
+                    <label htmlFor="edit-job-max" className="block text-sm font-medium text-gray-700 mb-1">Max Salary</label>
+                    <input id="edit-job-max" name="editMax" defaultValue={editingJob.salary?.split(' - ')[1]} className="w-full border border-gray-300 rounded-md p-2 text-sm" required />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-2">

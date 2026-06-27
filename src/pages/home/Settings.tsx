@@ -2,17 +2,71 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { Settings as SettingsIcon, Shield, Bell, Key, CheckCircle, AlertCircle, Lock, RefreshCw, Smartphone, Database, BookOpen } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Bell, Key, CheckCircle, AlertCircle, Lock, RefreshCw, Smartphone, Database, BookOpen, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 const Settings = () => {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const [isResetting, setIsResetting] = useState(false);
+  
+  const handleSystemReset = async () => {
+    if (!window.confirm("CRITICAL WARNING: This will delete ALL employees, payroll history, loans, and tax records permanently. This cannot be undone. Are you absolutely sure?")) {
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      // 1. Delete all profiles from Supabase except the current admin
+      const { error: profErr } = await supabase
+        .from('profiles')
+        .delete()
+        .neq('id', profile?.id);
+      
+      if (profErr) throw profErr;
+
+      // 2. Clear all finance-related tables and calendar events
+      await supabase.from('payroll_runs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('loans').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('tax_declarations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      
+      // Reset calendar events to default government holidays
+      await supabase.from('calendar_events').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      const defaultHolidays = [
+        { id: 'gov-holiday-1', title: 'New Year\'s Day 🎆', description: 'Official holiday for the first day of the year.', date: '2026-01-01', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
+        { id: 'gov-holiday-2', title: 'Republic Day 🇮🇳', description: 'Honors the date on which the Constitution of India came into effect.', date: '2026-01-26', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
+        { id: 'gov-holiday-3', title: 'Good Friday ✝️', description: 'Christian holiday commemorating the crucifixion of Jesus Christ.', date: '2026-04-03', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
+        { id: 'gov-holiday-4', title: 'May Day / Labour Day 🛠️', description: 'Celebration of workers and laborers.', date: '2026-05-01', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
+        { id: 'gov-holiday-5', title: 'Independence Day 🇮🇳', description: 'Commemorates the nation\'s independence.', date: '2026-08-15', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
+        { id: 'gov-holiday-6', title: 'Gandhi Jayanti 👓', description: 'Birthday of Mahatma Gandhi.', date: '2026-10-02', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
+        { id: 'gov-holiday-7', title: 'Diwali / Deepavali 🪔', description: 'Festival of lights.', date: '2026-11-08', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
+        { id: 'gov-holiday-8', title: 'Christmas Day 🎄', description: 'Annual festival commemorating the birth of Jesus Christ.', date: '2026-12-25', category: 'Company Holidays', location: 'National Holiday', is_custom: false }
+      ];
+      await supabase.from('calendar_events').insert(defaultHolidays);
+
+
+      // 3. Clear relevant localStorage items
+      const keysToWipe = [
+        'hr_employee_credentials', 
+        'hr_employee_submissions',
+        'hr_loan_applications'
+      ];
+      keysToWipe.forEach(k => localStorage.removeItem(k));
+
+      alert("System has been successfully reset. All employee data has been wiped.");
+      window.location.reload();
+    } catch (err: any) {
+      alert(`Error during reset: ${err.message}`);
+    } finally {
+      setIsResetting(false);
+    }
+  };
   
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordState, setPasswordState] = useState({ old: '', new: '', confirm: '' });
   const [toast, setToast] = useState('');
-  const [step, setStep] = useState(1); // 1: Old Password, 2: New Password
+  const [step, setStep] = useState(1); 
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -21,8 +75,6 @@ const Settings = () => {
 
   const handlePasswordUpdate = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Get stored credentials to verify and update
     const storedCredentials = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
     const userCredIndex = storedCredentials.findIndex((c: any) => c.email === profile?.email || c.employeeId === profile?.employeeId);
 
@@ -31,9 +83,7 @@ const Settings = () => {
         showToast('Account not found in secure storage! ✗');
         return;
       }
-
       const currentCreds = storedCredentials[userCredIndex];
-      
       if (passwordState.old === currentCreds.password) {
         setStep(2);
       } else {
@@ -45,11 +95,9 @@ const Settings = () => {
       } else if (passwordState.new !== passwordState.confirm) {
         showToast('Passwords do not match! ✗');
       } else {
-        // Update the password in localStorage
         if (userCredIndex !== -1) {
           storedCredentials[userCredIndex].password = passwordState.new;
           localStorage.setItem('hr_employee_credentials', JSON.stringify(storedCredentials));
-          
           showToast('Password updated successfully! ✓');
           setShowPasswordChange(false);
           setStep(1);
@@ -70,7 +118,7 @@ const Settings = () => {
   ];
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-6xl pb-12">
       {toast && (
         <div className="fixed top-24 right-8 bg-brand-navy text-white px-6 py-3 rounded-xl shadow-2xl z-50 border border-brand-teal flex items-center gap-3 animate-in slide-in-from-right">
           <CheckCircle className="text-brand-teal" size={20} />
@@ -86,8 +134,7 @@ const Settings = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Security & Password Card */}
-        <Card className="border-t-4 border-t-brand-navy flex flex-col">
+        <Card className="border-t-4 border-t-brand-navy flex flex-col shadow-sm">
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="flex items-center gap-3">
@@ -122,52 +169,29 @@ const Settings = () => {
                   <Key size={18} className="text-brand-navy" />
                   <h4 className="font-bold text-brand-navy">Change Account Password</h4>
                 </div>
-                
                 <form className="space-y-4" onSubmit={handlePasswordUpdate}>
                   {step === 1 ? (
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-gray-400 uppercase">Old Password</label>
-                      <input 
-                        type="password" 
-                        className="w-full border p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
-                        value={passwordState.old}
-                        onChange={(e) => setPasswordState({...passwordState, old: e.target.value})}
-                        placeholder="Enter your current password"
-                        required
-                      />
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Old Password</label>
+                      <input type="password" className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none" value={passwordState.old} onChange={(e) => setPasswordState({...passwordState, old: e.target.value})} placeholder="Enter current password" required />
                     </div>
                   ) : (
                     <>
                       <div className="space-y-1">
-                        <label className="text-xs font-bold text-gray-400 uppercase">New Password</label>
-                        <input 
-                          type="password" 
-                          className="w-full border p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
-                          value={passwordState.new}
-                          onChange={(e) => setPasswordState({...passwordState, new: e.target.value})}
-                          placeholder="Min. 12 characters"
-                          required
-                        />
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">New Password</label>
+                        <input type="password" className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none" value={passwordState.new} onChange={(e) => setPasswordState({...passwordState, new: e.target.value})} placeholder="Min. 8 characters" required />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-bold text-gray-400 uppercase">Confirm New Password</label>
-                        <input 
-                          type="password" 
-                          className="w-full border p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
-                          value={passwordState.confirm}
-                          onChange={(e) => setPasswordState({...passwordState, confirm: e.target.value})}
-                          placeholder="Repeat new password"
-                          required
-                        />
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Confirm Password</label>
+                        <input type="password" className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none" value={passwordState.confirm} onChange={(e) => setPasswordState({...passwordState, confirm: e.target.value})} placeholder="Repeat new password" required />
                       </div>
                     </>
                   )}
-                  
-                  <div className="flex gap-3 pt-2">
-                    <Button type="submit" className="flex-1 bg-brand-navy hover:bg-black">
+                  <div className="flex gap-3 pt-4">
+                    <Button type="submit" className="flex-1 bg-brand-navy hover:bg-black font-bold h-12">
                       {step === 1 ? 'Verify Old Password' : 'Update Password'}
                     </Button>
-                    <Button variant="ghost" onClick={() => { setShowPasswordChange(false); setStep(1); }} className="text-gray-400">Cancel</Button>
+                    <Button variant="ghost" onClick={() => { setShowPasswordChange(false); setStep(1); }} className="text-gray-400 h-12">Cancel</Button>
                   </div>
                 </form>
               </div>
@@ -175,48 +199,71 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Notifications Card */}
-        <Card className="border-t-4 border-t-brand-teal flex flex-col">
+        <Card className="border-t-4 border-t-brand-teal flex flex-col shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
               <Bell size={22} className="text-brand-teal" />
-              Notification Preferences
+              Notifications
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 space-y-6">
-            <p className="text-sm text-gray-500">Configure which system alerts and updates you wish to receive.</p>
-            
+            <p className="text-sm text-gray-500">Manage how you receive updates and system alerts.</p>
             <div className="space-y-4">
               {[
-                { label: 'Payroll & Tax Notifications', tag: 'High Urgency', color: 'text-red-500', bg: 'bg-red-50', desc: 'Updates regarding your monthly disbursement, salary credit, and tax document availability.' },
-                { label: 'Admin & HR Operations', tag: 'Action-Oriented', color: 'text-brand-teal', bg: 'bg-brand-teal/10', desc: 'Policy updates, performance review requests, and operational announcements.' },
-                { label: 'Security & Account Alerts', tag: 'Critical', color: 'text-amber-500', bg: 'bg-amber-50', desc: 'Important alerts for suspicious logins, password changes, and MFA activation.' }
+                { label: 'Payroll Alerts', color: 'text-red-500', bg: 'bg-red-50', desc: 'Monthly disbursement and tax document availability.' },
+                { label: 'HR Operations', color: 'text-brand-teal', bg: 'bg-brand-teal/10', desc: 'Policy updates and operational announcements.' },
+                { label: 'Security Alerts', color: 'text-amber-500', bg: 'bg-amber-50', desc: 'Suspicious logins and account changes.' }
               ].map((notif, i) => (
-                <div key={i} className="p-5 border rounded-2xl hover:bg-gray-50/50 transition-all space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-brand-navy">{notif.label}</span>
-                    <Badge className={`${notif.bg} ${notif.color} border-none`}>{notif.tag}</Badge>
-                  </div>
-                  <p className="text-xs text-gray-500 leading-relaxed">{notif.desc}</p>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <div className="relative inline-flex items-center h-5 w-9 shrink-0">
+                <div key={i} className="p-4 border rounded-2xl hover:bg-gray-50/50 transition-all">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-brand-navy text-sm">{notif.label}</span>
+                    <div className="relative inline-flex items-center h-4 w-8 shrink-0">
                       <input type="checkbox" className="sr-only peer" defaultChecked />
-                      <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-teal"></div>
+                      <div className="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:bg-brand-teal after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
                     </div>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase group-hover:text-brand-teal transition-colors">Enabled for Email & Web</span>
-                  </label>
+                  </div>
+                  <p className="text-[10px] text-gray-400 leading-relaxed font-medium">{notif.desc}</p>
                 </div>
               ))}
             </div>
-
             <div className="mt-6 p-4 bg-blue-50 rounded-xl flex gap-3 items-start border border-blue-100">
-               <AlertCircle className="text-blue-500 shrink-0" size={18} />
-               <p className="text-[10px] text-blue-800 leading-relaxed font-medium">
-                 Administrator posts categorized as "Critical" or "High Urgency" will automatically trigger notifications regardless of toggle settings to ensure organizational compliance.
+               <AlertCircle className="text-blue-500 shrink-0" size={16} />
+               <p className="text-[9px] text-blue-800 leading-relaxed font-medium">
+                 Critical alerts (Security/Compliance) are enforced by system policy and cannot be disabled.
                </p>
             </div>
           </CardContent>
         </Card>
+
+        {isAdmin && (
+          <Card className="border-t-4 border-t-red-500 lg:col-span-2 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3 text-red-600">
+                <Trash2 size={22} />
+                Danger Zone: System Reset
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-red-50/50 p-6 rounded-2xl border border-red-100 border-dashed">
+                <div className="space-y-1">
+                  <p className="font-bold text-red-800">Clear All Employee & Finance Data</p>
+                  <p className="text-[11px] text-red-600/70 max-w-xl font-medium">
+                    This will permanently delete all employee profiles (except yours), payroll records, loans, and taxes. 
+                    This action is destructive and cannot be undone.
+                  </p>
+                </div>
+                <Button 
+                  onClick={handleSystemReset} 
+                  disabled={isResetting}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold w-full md:w-auto px-10 py-4 h-auto shadow-lg shadow-red-500/10 rounded-xl flex items-center gap-2"
+                >
+                  {isResetting ? <RefreshCw className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                  <span>Wipe All Data</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

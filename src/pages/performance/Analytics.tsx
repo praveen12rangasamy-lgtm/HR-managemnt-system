@@ -54,7 +54,7 @@ const Analytics = () => {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 font-medium">Top Performer</p>
-              <h3 className="text-xl font-bold mt-2 text-brand-navy leading-tight">Sarah Connor<br /><span className="text-sm font-normal text-brand-teal">Sales Dept</span></h3>
+              <h3 className="text-xl font-bold mt-2 text-brand-navy leading-tight">Top Scoring Rep<br /><span className="text-sm font-normal text-brand-teal">Highest Performer</span></h3>
             </div>
             <div className="h-12 w-12 rounded-full bg-amber-100 text-status-amber flex items-center justify-center">
               <Award size={24} />
@@ -135,13 +135,7 @@ const Analytics = () => {
                 </tr>
               </thead>
               <tbody>
-                {[
-                  { rank: 1, name: 'Sarah Connor', dept: 'Sales', score: 98 },
-                  { rank: 2, name: 'Jane Doe', dept: 'UX Design', score: 95 },
-                  { rank: 3, name: 'John Smith', dept: 'Development', score: 92 },
-                  { rank: 4, name: 'Emily Clark', dept: 'Marketing', score: 89 },
-                  { rank: 5, name: 'David Lee', dept: 'Testing', score: 88 },
-                ].map((emp, i) => (
+                {[].map((emp: any, i: number) => (
                   <tr key={i} className="border-b hover:bg-gray-50">
                     <td className="px-6 py-4 text-center">
                       {emp.rank === 1 ? (

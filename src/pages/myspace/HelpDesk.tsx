@@ -15,10 +15,7 @@ const HelpDesk = () => {
   const [toast, setToast] = useState('');
 
   // Mock Admin Data for Tickets
-  const [adminTickets, setAdminTickets] = useState([
-    { id: 'TK1', name: 'Robert Fox', empId: 'VYR-2026-003', dept: 'Engineering', issue: 'VPN access not working since morning', priority: 'High' },
-    { id: 'TK2', name: 'Jane Cooper', empId: 'VYR-2026-007', dept: 'Sales', issue: 'New laptop requested for client visit', priority: 'Medium' },
-  ]);
+  const [adminTickets, setAdminTickets] = useState<any[]>([]);
 
 
   const showToast = (message: string) => {
@@ -147,15 +144,11 @@ const HelpDesk = () => {
               <p className="text-xs text-gray-500">Quick details of employees currently applying.</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                { name: 'Michael Scott', role: 'Sales Manager', date: 'Oct 12', match: 92 },
-                { name: 'Pam Beesly', role: 'UX Designer', date: 'Oct 14', match: 88 },
-                { name: 'Dwight Schrute', role: 'Sales Lead', date: 'Oct 15', match: 95 }
-              ].map((applicant, i) => (
+              {[].map((applicant: any, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-white rounded-xl border border-amber-100 shadow-sm">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-status-amber text-[10px] font-bold">
-                      {applicant.name.split(' ').map(n => n[0]).join('')}
+                      {applicant.name.split(' ').map((n: string) => n[0]).join('')}
                     </div>
                     <div>
                       <p className="text-xs font-bold text-brand-navy">{applicant.name}</p>

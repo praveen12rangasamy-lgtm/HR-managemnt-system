@@ -1,9 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Send, Eye, EyeOff, Shield, MonitorPlay, Key, Laptop, AlertCircle, CheckCircle, Search, User, KeyRound, Plus, X } from 'lucide-react';
+import { Send, Eye, EyeOff, Shield, MonitorPlay, Laptop, AlertCircle, CheckCircle, Search, KeyRound, Plus, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+interface EquipmentItem {
+  employee: string;
+  item: string;
+  model: string;
+  date: string;
+  status: string;
+}
+
+interface LicenseItem {
+  employee: string;
+  software: string;
+  key: string;
+  expiry: string;
+  status: string;
+}
 
 const Equipment = () => {
   const { profile } = useAuth();
@@ -19,51 +35,30 @@ const Equipment = () => {
   const [newHardware, setNewHardware] = useState({ employee: '', item: '', model: '', date: new Date().toISOString().split('T')[0] });
   const [newSoftware, setNewSoftware] = useState({ employee: '', software: '', key: '', expiry: '' });
 
-  // Equipment state - shared via localStorage for demo purposes
-  const [equipment, setEquipment] = useState<any[]>([]);
-  const [licenses, setLicenses] = useState<any[]>([]);
-
-  useEffect(() => {
-    const initialEquip = [
-      { employee: 'Jane Doe', item: 'Laptop', model: 'MacBook Pro 16"', date: 'Jan 15, 2023', status: 'Active' },
-      { employee: 'Michael Chen', item: 'Monitor', model: 'Dell UltraSharp 27"', date: 'Feb 01, 2023', status: 'Active' },
-      { employee: 'Sarah Miller', item: 'Headset', model: 'Sony WH-1000XM5', date: 'Jun 10, 2024', status: 'Repairing' },
-      { employee: 'John Doe', item: 'Laptop', model: 'Lenovo ThinkPad X1', date: 'Mar 12, 2024', status: 'Active' },
-      { employee: 'VYR-2024-001', item: 'Laptop', model: 'Dell Latitude 7440', date: 'Mar 16, 2024', status: 'Active' },
-      { employee: 'Emily Brown', item: 'Tablet', model: 'iPad Pro 12.9"', date: 'Oct 20, 2023', status: 'Active' },
-      { employee: 'David Wilson', item: 'Monitor', model: 'LG 34" Ultrawide', date: 'Dec 05, 2023', status: 'Active' },
-      { employee: 'Lisa Wang', item: 'Laptop', model: 'Dell XPS 15', date: 'Jan 22, 2024', status: 'Repairing' },
-      { employee: 'Kevin Park', item: 'Phone', model: 'iPhone 15 Pro', date: 'Nov 14, 2023', status: 'Active' },
-      { employee: 'Rachel Green', item: 'Headset', model: 'Bose QC45', date: 'Apr 08, 2024', status: 'Active' },
-      { employee: 'Tom Baker', item: 'Laptop', model: 'MacBook Air M2', date: 'Feb 28, 2024', status: 'Active' },
-      { employee: 'Alice Smith', item: 'Laptop', model: 'MacBook Pro 14"', date: 'May 15, 2024', status: 'Active' },
-      { employee: 'Bob Johnson', item: 'Mouse', model: 'Logitech MX Master 3', date: 'Jun 01, 2024', status: 'Active' },
-    ];
-    const initialLicenses = [
-      { employee: 'Jane Doe', software: 'Microsoft 365', key: 'M365-X89B-VYRA', expiry: 'Dec 31, 2026', status: 'Active' },
-      { employee: 'Sarah Miller', software: 'Adobe Creative Cloud', key: 'ADBE-CC-2026', expiry: 'Jan 15, 2027', status: 'Active' },
-      { employee: 'John Doe', software: 'Figma Enterprise', key: 'FIG-ENT-SSO', expiry: 'N/A', status: 'Active' },
-      { employee: 'Michael Chen', software: 'Slack Enterprise', key: 'SLK-EMP-2026', expiry: 'Dec 01, 2026', status: 'Active' },
-      { employee: 'Emily Brown', software: 'Zoom Pro', key: 'ZM-PR-445B', expiry: 'Jul 10, 2025', status: 'Active' },
-      { employee: 'Alice Smith', software: 'GitHub Copilot', key: 'GH-COP-2025', expiry: 'Aug 22, 2025', status: 'Active' },
-      { employee: 'Bob Johnson', software: 'PyCharm Pro', key: 'PY-JB-2026', expiry: 'Oct 30, 2026', status: 'Active' },
-    ];
-
-    const storedEquip = localStorage.getItem('all_equipment');
-    const storedLicenses = localStorage.getItem('software_licenses');
-
-    if (storedEquip) setEquipment(JSON.parse(storedEquip));
-    else {
-      setEquipment(initialEquip);
-      localStorage.setItem('all_equipment', JSON.stringify(initialEquip));
+  // Equipment state - initialized from localStorage to avoid effect-based cascading renders
+  const [equipment, setEquipment] = useState<EquipmentItem[]>(() => {
+    const stored = localStorage.getItem('all_equipment');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
     }
+    return [];
+  });
 
-    if (storedLicenses) setLicenses(JSON.parse(storedLicenses));
-    else {
-      setLicenses(initialLicenses);
-      localStorage.setItem('software_licenses', JSON.stringify(initialLicenses));
+  const [licenses, setLicenses] = useState<LicenseItem[]>(() => {
+    const stored = localStorage.getItem('software_licenses');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
     }
-  }, []);
+    return [];
+  });
 
   const handleReport = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -139,30 +134,30 @@ const Equipment = () => {
           <Card className="w-full max-w-md animate-in zoom-in-95 duration-200">
             <CardHeader className="flex flex-row items-center justify-between border-b bg-gray-50/50">
               <CardTitle className="text-lg flex items-center gap-2"><Laptop size={20}/> Provision Hardware</CardTitle>
-              <button onClick={() => setShowHardwareModal(false)} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
+              <button onClick={() => setShowHardwareModal(false)} className="text-gray-400 hover:text-red-500" aria-label="Close modal" title="Close modal"><X size={20}/></button>
             </CardHeader>
             <CardContent className="pt-6">
               <form onSubmit={handleAddHardware} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name or ID</label>
-                  <input type="text" required placeholder="e.g. VYR-2024-001 or John Smith" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
+                  <label htmlFor="hw-employee" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name or ID</label>
+                  <input id="hw-employee" type="text" required placeholder="e.g. VYR-2024-001 or John Smith" title="Employee Name or ID" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
                     value={newHardware.employee} onChange={e => setNewHardware({...newHardware, employee: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Item Name</label>
-                    <input type="text" required placeholder="e.g. Laptop" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
+                    <label htmlFor="hw-item" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Item Name</label>
+                    <input id="hw-item" type="text" required placeholder="e.g. Laptop" title="Item Name" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
                       value={newHardware.item} onChange={e => setNewHardware({...newHardware, item: e.target.value})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Model</label>
-                    <input type="text" required placeholder="e.g. Dell XPS 15" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
+                    <label htmlFor="hw-model" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Model</label>
+                    <input id="hw-model" type="text" required placeholder="e.g. Dell XPS 15" title="Model" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
                       value={newHardware.model} onChange={e => setNewHardware({...newHardware, model: e.target.value})} />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Assigned Date</label>
-                  <input type="date" required className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
+                  <label htmlFor="hw-assigned-date" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Assigned Date</label>
+                  <input id="hw-assigned-date" type="date" required title="Assigned Date" placeholder="Assigned Date" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
                     value={newHardware.date} onChange={e => setNewHardware({...newHardware, date: e.target.value})} />
                 </div>
                 <Button type="submit" className="w-full bg-brand-navy hover:bg-black mt-2">Provision Asset</Button>
@@ -178,29 +173,29 @@ const Equipment = () => {
           <Card className="w-full max-w-md animate-in zoom-in-95 duration-200">
             <CardHeader className="flex flex-row items-center justify-between border-b bg-gray-50/50">
               <CardTitle className="text-lg flex items-center gap-2"><KeyRound size={20}/> Assign License</CardTitle>
-              <button onClick={() => setShowSoftwareModal(false)} className="text-gray-400 hover:text-red-500"><X size={20}/></button>
+              <button onClick={() => setShowSoftwareModal(false)} className="text-gray-400 hover:text-red-500" aria-label="Close modal" title="Close modal"><X size={20}/></button>
             </CardHeader>
             <CardContent className="pt-6">
               <form onSubmit={handleAddSoftware} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name</label>
-                  <input type="text" required placeholder="Employee Name" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
+                  <label htmlFor="sw-employee" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name</label>
+                  <input id="sw-employee" type="text" required placeholder="Employee Name" title="Employee Name" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
                     value={newSoftware.employee} onChange={e => setNewSoftware({...newSoftware, employee: e.target.value})} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Software Name</label>
-                  <input type="text" required placeholder="e.g. IntelliJ IDEA" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
+                  <label htmlFor="sw-name" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Software Name</label>
+                  <input id="sw-name" type="text" required placeholder="e.g. IntelliJ IDEA" title="Software Name" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
                     value={newSoftware.software} onChange={e => setNewSoftware({...newSoftware, software: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">License Key</label>
-                    <input type="text" required placeholder="Key or SSO" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
+                    <label htmlFor="sw-key" className="text-xs font-bold text-gray-500 uppercase tracking-wider">License Key</label>
+                    <input id="sw-key" type="text" required placeholder="Key or SSO" title="License Key" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
                       value={newSoftware.key} onChange={e => setNewSoftware({...newSoftware, key: e.target.value})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Expiry Date</label>
-                    <input type="text" required placeholder="e.g. Dec 2026" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
+                    <label htmlFor="sw-expiry" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Expiry Date</label>
+                    <input id="sw-expiry" type="text" required placeholder="e.g. Dec 2026" title="Expiry Date" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
                       value={newSoftware.expiry} onChange={e => setNewSoftware({...newSoftware, expiry: e.target.value})} />
                   </div>
                 </div>
@@ -211,17 +206,19 @@ const Equipment = () => {
         </div>
       )}
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <h2 className="text-2xl font-bold text-brand-navy flex items-center gap-2">
           <MonitorPlay size={24} className="text-brand-teal" /> 
           {isAdmin ? 'Global Asset Inventory' : 'My Equipment & Assets'}
         </h2>
         {isAdmin && (
-          <div className="relative w-72">
+          <div className="relative w-full sm:w-72">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input 
               type="text" 
               placeholder="Search by employee or asset..." 
+              title="Search by employee or asset"
+              aria-label="Search by employee or asset"
               className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-teal outline-none text-sm shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -234,10 +231,10 @@ const Equipment = () => {
         
         {/* Hardware Card */}
         <Card className="h-full border-t-4 border-t-brand-navy shadow-xl shadow-brand-navy/5">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row gap-4 sm:items-center justify-between">
             <CardTitle className="flex items-center gap-2"><Laptop size={20} className="text-brand-navy" /> {isAdmin ? 'Hardware Distributions' : 'Hardware Assigned'}</CardTitle>
             {isAdmin && (
-              <Button size="sm" onClick={() => setShowHardwareModal(true)} className="gap-2 bg-brand-teal hover:bg-brand-teal/90">
+              <Button size="sm" onClick={() => setShowHardwareModal(true)} className="w-full sm:w-auto justify-center gap-2 bg-brand-teal hover:bg-brand-teal/90">
                 <Plus size={16}/> Provide Asset to New User
               </Button>
             )}
@@ -290,10 +287,10 @@ const Equipment = () => {
 
         {/* Software Licenses Card */}
         <Card className="h-full border-t-4 border-t-brand-teal shadow-xl shadow-brand-navy/5">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row gap-4 sm:items-center justify-between">
             <CardTitle className="flex items-center gap-2"><KeyRound size={20} className="text-brand-teal" /> {isAdmin ? 'Master Software Licenses' : 'Software Licenses'}</CardTitle>
             {isAdmin && (
-              <Button size="sm" onClick={() => setShowSoftwareModal(true)} className="gap-2 bg-brand-navy hover:bg-black">
+              <Button size="sm" onClick={() => setShowSoftwareModal(true)} className="w-full sm:w-auto justify-center gap-2 bg-brand-navy hover:bg-black">
                 <Plus size={16}/> Provide License to New User
               </Button>
             )}
@@ -322,7 +319,7 @@ const Equipment = () => {
                       <td className="px-6 py-4 font-mono text-[10px] tracking-tighter text-gray-400 bg-gray-50/30 rounded px-2 py-1 mx-6 my-4 inline-block">
                         {isAdmin || showKey ? license.key : '••••-••••-••••'}
                         {!isAdmin && (
-                          <button onClick={() => setShowKey(!showKey)} className="ml-1 text-gray-400 hover:text-brand-teal">
+                          <button onClick={() => setShowKey(!showKey)} className="ml-1 text-gray-400 hover:text-brand-teal" title="Toggle key visibility" aria-label="Toggle key visibility">
                             {showKey ? <EyeOff size={10} /> : <Eye size={10} />}
                           </button>
                         )}
@@ -350,7 +347,7 @@ const Equipment = () => {
 
         {/* Conditional Box 3 & 4 (Only for Employees) */}
         {!isAdmin && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 col-span-1 lg:col-span-2">
             <Card className="h-full border-t-4 border-t-brand-navy">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Shield size={18} /> Credentials & Access</CardTitle>
@@ -368,7 +365,7 @@ const Equipment = () => {
                   <span className="text-sm font-medium text-gray-500">System Password</span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-mono tracking-wider">{showPwd ? 'Hunter*2026!' : '••••••••••••'}</span>
-                    <button onClick={() => setShowPwd(!showPwd)} className="text-gray-400 hover:text-brand-teal">
+                    <button onClick={() => setShowPwd(!showPwd)} className="text-gray-400 hover:text-brand-teal" title="Toggle password visibility" aria-label="Toggle password visibility">
                       {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
@@ -387,8 +384,8 @@ const Equipment = () => {
               <CardContent>
                 <form className="space-y-4" onSubmit={handleReport}>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Asset</label>
-                    <select className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal text-sm bg-white" required>
+                    <label htmlFor="report-asset" className="block text-sm font-medium text-gray-700 mb-1">Select Asset</label>
+                    <select id="report-asset" title="Select Asset" className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal text-sm bg-white" required>
                       <option value="">-- Choose asset --</option>
                       {myEquipment.map((e, idx) => (
                         <option key={`hw-${idx}`} value={`Hardware: ${e.item}`}>Hardware: {e.item} ({e.model})</option>
@@ -400,8 +397,8 @@ const Equipment = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Issue Type</label>
-                    <select className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal text-sm bg-white" required>
+                    <label htmlFor="report-issue-type" className="block text-sm font-medium text-gray-700 mb-1">Issue Type</label>
+                    <select id="report-issue-type" title="Issue Type" className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal text-sm bg-white" required>
                       <option value="">-- Choose issue category --</option>
                       <option>Damaged / Broken</option>
                       <option>Not Working / Software Error</option>
@@ -411,8 +408,8 @@ const Equipment = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Describe Issue</label>
-                    <textarea rows={3} className="w-full border border-gray-300 bg-white rounded-md p-2 focus:ring-brand-teal resize-none text-sm" placeholder="Please provide details about what went wrong..." required></textarea>
+                    <label htmlFor="report-desc" className="block text-sm font-medium text-gray-700 mb-1">Describe Issue</label>
+                    <textarea id="report-desc" rows={3} title="Describe Issue" className="w-full border border-gray-300 bg-white rounded-md p-2 focus:ring-brand-teal resize-none text-sm" placeholder="Please provide details about what went wrong..." required></textarea>
                   </div>
 
                   <div className="pt-2">

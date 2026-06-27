@@ -1,179 +1,177 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
-import { FileText, Download, CheckCircle, Upload, ShieldOff, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import TaxSlabTable from '../../components/payroll/TaxSlabTable';
+import { Info, ShieldCheck } from 'lucide-react';
+
+interface TaxDeclaration {
+  id: string;
+  employee_id: string;
+  financial_year: string;
+  declaration_data: {
+    section_80c?: number | string;
+    section_80d?: number | string;
+    hra?: number | string;
+    home_loan?: number | string;
+  };
+  status: string;
+  profiles?: {
+    full_name: string;
+    employee_id: string;
+  };
+}
 
 const TaxInformation = () => {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
-  const [toast, setToast] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [declarations, setDeclarations] = useState<TaxDeclaration[]>([]);
+  const [myDeclaration, setMyDeclaration] = useState<TaxDeclaration | null>(null);
 
-  const showToast = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(''), 3000);
-  };
+  const fetchDeclarations = useCallback(async () => {
+    if (isAdmin) {
+      const { data } = await supabase.from('tax_declarations').select('*, profiles(full_name, employee_id)');
+      if (data) setDeclarations(data);
+    } else {
+      const { data } = await supabase.from('tax_declarations').select('*').eq('employee_id', profile?.id).maybeSingle();
+      if (data) setMyDeclaration(data);
+    }
+  }, [isAdmin, profile?.id]);
 
-  const handleDownload = (docName: string, year: string) => {
-    const content = `VyaraHR Tax Document: ${docName} (${year})\nThis is a mock tax document for testing purposes.`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${docName.replace(/\s+/g, '_')}_${year}.txt`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast(`${docName} downloaded successfully!`);
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchDeclarations();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchDeclarations]);
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleSubmitDeclaration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const declaration_data = {
+      section_80c: formData.get('80c'),
+      section_80d: formData.get('80d'),
+      hra: formData.get('hra'),
+      home_loan: formData.get('home_loan')
+    };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploading(true);
-      // Simulate upload delay
-      setTimeout(() => {
-        setUploading(false);
-        showToast(`"${file.name}" uploaded successfully! ✓`);
-        // Reset input so the same file can be selected again
-        e.target.value = '';
-      }, 2000);
+    const { error } = await supabase.from('tax_declarations').upsert({
+      employee_id: profile?.id,
+      financial_year: '2024-25',
+      declaration_data,
+      status: 'pending'
+    });
+
+    if (!error) {
+      alert("Declaration submitted successfully!");
+      fetchDeclarations();
     }
   };
 
-  const taxDocuments = [
-    { year: '2023-24', name: 'Form 16', date: 'June 15, 2024', status: 'Available' },
-    { year: '2023-24', name: 'Investment Declaration', date: 'Jan 10, 2024', status: 'Verified' },
-    { year: '2022-23', name: 'Form 16', date: 'June 12, 2023', status: 'Available' }
-  ];
-
-  if (isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 animate-in fade-in zoom-in-95 duration-500">
-        <div className="w-24 h-24 rounded-full bg-brand-navy/5 flex items-center justify-center mb-6">
-          <ShieldOff size={48} className="text-brand-navy opacity-20" />
-        </div>
-        <h2 className="text-3xl font-bold text-brand-navy mb-4">Tax Information Restricted</h2>
-        <div className="max-w-md p-6 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-4 text-left">
-          <AlertCircle className="text-amber-600 mt-1 shrink-0" size={20} />
-          <p className="text-amber-800 text-sm leading-relaxed">
-            Personal tax Information dashboards are not applicable for Administrator accounts. To manage organization-wide tax settings, please visit the <strong>Cloud Portal</strong> or <strong>Subscription Management</strong>.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      {toast && (
-        <div className="fixed top-24 right-8 bg-brand-navy text-white px-6 py-3 rounded-xl shadow-2xl z-50 border border-brand-teal flex items-center gap-3 animate-in slide-in-from-right">
-          <CheckCircle className="text-brand-teal" size={20} />
-          <span className="font-medium">{toast}</span>
+    <div className="space-y-8 min-h-screen">
+      <div>
+        <h1 className="font-display text-[1.8rem] font-bold text-brand-navy mb-1">Tax Information</h1>
+        <p className="text-gray-500 text-sm">Investment declarations and tax regime reference</p>
+      </div>
+
+      {isAdmin ? (
+        <div className="space-y-8">
+          <TaxSlabTable />
+          <div className="bg-white border border-gray-100 rounded-[18px] overflow-hidden shadow-sm">
+             <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-gray-50/30">
+               <h3 className="font-display font-bold text-lg text-brand-navy">Employee Declarations</h3>
+               <button className="w-full sm:w-auto bg-brand-orange text-white text-[10px] font-bold px-4 py-2 rounded-[8px] hover:opacity-90">Export All (Excel)</button>
+             </div>
+             <div className="overflow-x-auto">
+               <table className="w-full text-left">
+                 <thead className="bg-gray-50 text-[10px] uppercase font-bold text-gray-500 tracking-widest border-b border-gray-100">
+                   <tr>
+                     <th className="px-6 py-5">Employee</th>
+                     <th className="px-6 py-5">80C Amount</th>
+                     <th className="px-6 py-5">HRA Exemption</th>
+                     <th className="px-6 py-5">Status</th>
+                     <th className="px-6 py-5 text-right">Actions</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-50 text-[11px]">
+                   {declarations.length > 0 ? declarations.map(d => (
+                     <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                       <td className="px-6 py-4 font-bold text-brand-navy">{d.profiles?.full_name}</td>
+                       <td className="px-6 py-4">₹ {Number(d.declaration_data?.section_80c || 0).toLocaleString()}</td>
+                       <td className="px-6 py-4">₹ {Number(d.declaration_data?.hra || 0).toLocaleString()}</td>
+                       <td className="px-6 py-4">
+                         <span className={`text-[9px] font-bold uppercase ${d.status === 'verified' ? 'text-green-600' : 'text-brand-orange'}`}>{d.status}</span>
+                       </td>
+                       <td className="px-6 py-4 text-right">
+                         <button className="text-brand-orange font-bold hover:underline">Verify Docs</button>
+                       </td>
+                     </tr>
+                   )) : (
+                     <tr><td colSpan={5} className="p-12 text-center text-gray-400">No declarations submitted yet</td></tr>
+                   )}
+                 </tbody>
+               </table>
+             </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white border border-gray-100 rounded-[18px] p-4 sm:p-8 shadow-sm">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-display font-bold text-xl text-brand-navy">IT Declaration</h3>
+              {myDeclaration?.status === 'verified' && <div className="flex items-center gap-1.5 text-green-600 font-bold text-[10px] uppercase"><ShieldCheck size={14} /> Verified</div>}
+            </div>
+            
+            <form onSubmit={handleSubmitDeclaration} className="space-y-6">
+              <InputSlab name="80c" label="Section 80C (LIC, PPF, ELSS)" defaultValue={myDeclaration?.declaration_data?.section_80c} />
+              <InputSlab name="80d" label="Section 80D (Health Insurance)" defaultValue={myDeclaration?.declaration_data?.section_80d} />
+              <InputSlab name="hra" label="House Rent Allowance (HRA)" defaultValue={myDeclaration?.declaration_data?.hra} />
+              <InputSlab name="home_loan" label="Home Loan Interest (Section 24)" defaultValue={myDeclaration?.declaration_data?.home_loan} />
+              
+              <button 
+                type="submit"
+                disabled={myDeclaration?.status === 'verified'}
+                className="w-full bg-brand-orange text-white font-bold py-4 rounded-xl hover:opacity-90 transition-all shadow-lg shadow-orange-500/10 disabled:opacity-50"
+              >
+                {myDeclaration?.status === 'verified' ? 'Declaration Verified & Locked' : 'Update Declaration'}
+              </button>
+            </form>
+          </div>
+          <div className="space-y-6">
+            <TaxSlabTable />
+            <div className="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-6 text-center">
+              <Info className="text-gray-300 mx-auto mb-3" size={32} />
+              <p className="text-xs text-gray-400 font-medium">Declaration proof documents will be requested at the end of the financial year (March).</p>
+            </div>
+          </div>
         </div>
       )}
-
-      <h2 className="text-2xl font-bold text-brand-navy">Tax Information</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tax Summary (FY 24-25)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-500">Taxable Income</span>
-              <span className="font-semibold text-brand-navy">₹ 1,240,000</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-500">TDS Deducted</span>
-              <span className="font-semibold text-brand-navy">₹ 142,500</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-500">80C Investments</span>
-              <span className="font-semibold text-brand-teal">₹ 150,000</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Investment Declaration</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-lg">
-            <p className="text-gray-500 text-center mb-4 text-sm">Update your investment declarations for the current financial year to optimize your tax savings.</p>
-            
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              onChange={handleFileChange}
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-            />
-            
-            <button 
-              onClick={handleUploadClick}
-              disabled={uploading}
-              className="bg-brand-navy text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-brand-navy-light transition-all flex items-center gap-2 disabled:opacity-50"
-            >
-              <Upload size={16} className={uploading ? 'animate-bounce' : ''} />
-              {uploading ? 'Uploading...' : 'Update Declaration'}
-            </button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Tax Documents</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50 rounded-md border-b">
-                <tr>
-                  <th className="px-6 py-3">Financial Year</th>
-                  <th className="px-6 py-3">Document Name</th>
-                  <th className="px-6 py-3">Issued Date</th>
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {taxDocuments.map((doc, i) => (
-                  <tr key={i} className="border-b">
-                    <td className="px-6 py-4 font-medium text-brand-navy">{doc.year}</td>
-                    <td className="px-6 py-4 flex items-center gap-2">
-                      <FileText size={16} className="text-gray-400" />
-                      {doc.name}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">{doc.date}</td>
-                    <td className="px-6 py-4">
-                      <Badge variant="green">{doc.status}</Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <button 
-                        onClick={() => handleDownload(doc.name, doc.year)}
-                        className="text-brand-teal hover:text-brand-teal-dark flex items-center gap-1 font-medium transition-colors"
-                      >
-                        <Download size={14} /> Download
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
+
+interface InputSlabProps {
+  name: string;
+  label: string;
+  defaultValue?: number | string;
+}
+
+const InputSlab = ({ name, label, defaultValue }: InputSlabProps) => (
+  <div className="space-y-2">
+    <label htmlFor={`tax-input-${name}`} className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">{label}</label>
+    <div className="relative">
+      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">₹</span>
+      <input 
+        id={`tax-input-${name}`}
+        name={name}
+        type="number" 
+        defaultValue={defaultValue || 0}
+        placeholder={label}
+        title={label}
+        className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-8 pr-4 py-3 text-sm outline-none focus:border-brand-orange font-bold text-brand-navy" 
+      />
+    </div>
+  </div>
+);
 
 export default TaxInformation;
