@@ -32,7 +32,7 @@ export const sendEmail = async ({ to, subject, html, from, attachments }: SendEm
           'Authorization': `Bearer ${resendApiKey}`
         },
         body: JSON.stringify({
-          from: from || 'VyaraHR <onboarding@vyarahr.space>',
+          from: from || 'VyaraHR <onboarding@VyaraHR.space>',
           to: Array.isArray(to) ? to : [to],
           subject,
           html,
