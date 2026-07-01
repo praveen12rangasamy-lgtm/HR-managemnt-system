@@ -68,6 +68,7 @@ const Header: React.FC<HeaderProps> = ({ isMobile }) => {
       { name: 'My Profile', path: '/dashboard/myspace/profile' },
       { name: 'Attendance', path: '/dashboard/myspace/attendance' },
       { name: 'Leaves', path: '/dashboard/myspace/leaves' },
+      ...(!isAdmin ? [{ name: 'Offboarding', path: '/dashboard/myspace/resignation' }] : []),
       { name: 'Help Desk', path: '/dashboard/myspace/helpdesk' }
     ];
   }

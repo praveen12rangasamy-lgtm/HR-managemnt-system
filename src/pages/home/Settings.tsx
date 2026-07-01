@@ -67,27 +67,33 @@ const Settings = () => {
   const [passwordState, setPasswordState] = useState({ old: '', new: '', confirm: '' });
   const [toast, setToast] = useState('');
   const [step, setStep] = useState(1); 
+  const [notificationSettings, setNotificationSettings] = useState({
+    payroll: true,
+    hr: true,
+    security: true
+  });
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 3000);
   };
 
-  const handlePasswordUpdate = (e: React.FormEvent) => {
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const storedCredentials = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
-    const userCredIndex = storedCredentials.findIndex((c: any) => c.email === profile?.email || c.employeeId === profile?.employeeId);
+    if (!profile?.email) return;
 
     if (step === 1) {
-      if (userCredIndex === -1) {
-        showToast('Account not found in secure storage! ✗');
-        return;
-      }
-      const currentCreds = storedCredentials[userCredIndex];
-      if (passwordState.old === currentCreds.password) {
-        setStep(2);
-      } else {
+      showToast('Verifying current password...');
+      const { error } = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password: passwordState.old
+      });
+
+      if (error) {
         showToast('Incorrect old password! ✗');
+      } else {
+        setStep(2);
+        showToast('Old password verified! ✓');
       }
     } else {
       if (passwordState.new.length < 8) {
@@ -95,15 +101,24 @@ const Settings = () => {
       } else if (passwordState.new !== passwordState.confirm) {
         showToast('Passwords do not match! ✗');
       } else {
-        if (userCredIndex !== -1) {
-          storedCredentials[userCredIndex].password = passwordState.new;
-          localStorage.setItem('hr_employee_credentials', JSON.stringify(storedCredentials));
+        showToast('Updating password...');
+        const { error } = await supabase.auth.updateUser({ password: passwordState.new });
+
+        if (error) {
+          showToast(`Failed to update password: ${error.message} ✗`);
+        } else {
+          // If employee, also update their password field in public.profiles table
+          if (profile.role === 'employee') {
+            await supabase
+              .from('profiles')
+              .update({ password: passwordState.new })
+              .eq('id', profile.id);
+          }
+          
           showToast('Password updated successfully! ✓');
           setShowPasswordChange(false);
           setStep(1);
           setPasswordState({ old: '', new: '', confirm: '' });
-        } else {
-          showToast('Failed to identify session. Please re-login. ✗');
         }
       }
     }
@@ -210,17 +225,25 @@ const Settings = () => {
             <p className="text-sm text-gray-500">Manage how you receive updates and system alerts.</p>
             <div className="space-y-4">
               {[
-                { label: 'Payroll Alerts', color: 'text-red-500', bg: 'bg-red-50', desc: 'Monthly disbursement and tax document availability.' },
-                { label: 'HR Operations', color: 'text-brand-teal', bg: 'bg-brand-teal/10', desc: 'Policy updates and operational announcements.' },
-                { label: 'Security Alerts', color: 'text-amber-500', bg: 'bg-amber-50', desc: 'Suspicious logins and account changes.' }
-              ].map((notif, i) => (
-                <div key={i} className="p-4 border rounded-2xl hover:bg-gray-50/50 transition-all">
+                { key: 'payroll', label: 'Payroll Alerts', color: 'text-red-500', bg: 'bg-red-50', desc: 'Monthly disbursement and tax document availability.' },
+                { key: 'hr', label: 'HR Operations', color: 'text-brand-teal', bg: 'bg-brand-teal/10', desc: 'Policy updates and operational announcements.' },
+                { key: 'security', label: 'Security Alerts', color: 'text-amber-500', bg: 'bg-amber-50', desc: 'Suspicious logins and account changes.' }
+              ].map((notif) => (
+                <div key={notif.key} className="p-4 border rounded-2xl hover:bg-gray-50/50 transition-all">
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-bold text-brand-navy text-sm">{notif.label}</span>
-                    <div className="relative inline-flex items-center h-4 w-8 shrink-0">
-                      <input type="checkbox" className="sr-only peer" defaultChecked />
+                    <label className="relative inline-flex items-center h-4 w-8 shrink-0 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={notificationSettings[notif.key as keyof typeof notificationSettings]} 
+                        onChange={(e) => setNotificationSettings({
+                          ...notificationSettings,
+                          [notif.key]: e.target.checked
+                        })}
+                      />
                       <div className="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:bg-brand-teal after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div>
-                    </div>
+                    </label>
                   </div>
                   <p className="text-[10px] text-gray-400 leading-relaxed font-medium">{notif.desc}</p>
                 </div>
@@ -234,36 +257,6 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
-
-        {isAdmin && (
-          <Card className="border-t-4 border-t-red-500 lg:col-span-2 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3 text-red-600">
-                <Trash2 size={22} />
-                Danger Zone: System Reset
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-red-50/50 p-6 rounded-2xl border border-red-100 border-dashed">
-                <div className="space-y-1">
-                  <p className="font-bold text-red-800">Clear All Employee & Finance Data</p>
-                  <p className="text-[11px] text-red-600/70 max-w-xl font-medium">
-                    This will permanently delete all employee profiles (except yours), payroll records, loans, and taxes. 
-                    This action is destructive and cannot be undone.
-                  </p>
-                </div>
-                <Button 
-                  onClick={handleSystemReset} 
-                  disabled={isResetting}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold w-full md:w-auto px-10 py-4 h-auto shadow-lg shadow-red-500/10 rounded-xl flex items-center gap-2"
-                >
-                  {isResetting ? <RefreshCw className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                  <span>Wipe All Data</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

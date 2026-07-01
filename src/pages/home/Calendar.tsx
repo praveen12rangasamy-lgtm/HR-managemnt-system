@@ -418,12 +418,14 @@ const CalendarPage: React.FC = () => {
       const dayDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const dayEvents = visibleEvents.filter(ev => ev.date === dayDateStr);
       const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+      const dayOfWeek = new Date(year, month, day).getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
       cells.push(
         <div 
           key={`day-${day}`} 
           className={`min-h-[120px] border border-gray-100 p-2 transition-all hover:bg-brand-orange/5 relative flex flex-col gap-1 cursor-pointer ${
-            isToday ? 'bg-brand-orange/10 font-bold border-brand-orange/30' : 'bg-white'
+            isToday ? 'bg-brand-orange/10 font-bold border-brand-orange/30' : isWeekend ? 'bg-red-50/40' : 'bg-white'
           }`}
           onClick={() => {
             if (dayEvents.length > 0) {
@@ -446,7 +448,7 @@ const CalendarPage: React.FC = () => {
         >
           <div className="flex justify-between items-center mb-1">
             <span className={`text-xs rounded-full w-5 h-5 flex items-center justify-center ${
-              isToday ? 'bg-brand-orange text-white font-extrabold shadow-md' : 'text-brand-navy font-bold'
+              isToday ? 'bg-brand-orange text-white font-extrabold shadow-md' : isWeekend ? 'text-red-400 font-bold' : 'text-brand-navy font-bold'
             }`}>{day}</span>
             {dayEvents.length > 0 && (
               <span className="text-[9px] text-gray-400 font-semibold">{dayEvents.length} Events</span>
@@ -501,12 +503,13 @@ const CalendarPage: React.FC = () => {
       const dayEvents = visibleEvents.filter(ev => ev.date === dayDateStr);
       const isToday = new Date().toDateString() === dayDate.toDateString();
 
+      const isWeekendWeek = i === 0 || i === 6;
       days.push(
-        <div key={`week-day-${i}`} className="flex-1 min-h-[300px] border-r border-gray-100 bg-white">
-          <div className={`p-3 text-center border-b ${isToday ? 'bg-brand-orange/5 border-b-brand-orange/30' : ''}`}>
-            <p className="text-[10px] text-gray-400 font-bold uppercase">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i]}</p>
+        <div key={`week-day-${i}`} className={`flex-1 min-h-[300px] border-r border-gray-100 ${isWeekendWeek ? 'bg-red-50/30' : 'bg-white'}`}>
+          <div className={`p-3 text-center border-b ${isToday ? 'bg-brand-orange/5 border-b-brand-orange/30' : isWeekendWeek ? 'bg-red-50/50' : ''}`}>
+            <p className={`text-[10px] font-bold uppercase ${isWeekendWeek ? 'text-red-400' : 'text-gray-400'}`}>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i]}</p>
             <p className={`text-base font-bold inline-block w-8 h-8 leading-8 rounded-full ${
-              isToday ? 'bg-brand-orange text-white' : 'text-brand-navy'
+              isToday ? 'bg-brand-orange text-white' : isWeekendWeek ? 'text-red-400' : 'text-brand-navy'
             }`}>{dayDate.getDate()}</p>
           </div>
           
@@ -645,7 +648,9 @@ const CalendarPage: React.FC = () => {
                 {currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
               </div>
               <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-gray-400 mb-1">
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <span key={i}>{d}</span>)}
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                  <span key={i} className={i === 0 || i === 6 ? 'text-red-400' : ''}>{d}</span>
+                ))}
               </div>
               <div className="grid grid-cols-7 gap-1 text-center text-xs">
                 {(() => {
@@ -661,6 +666,8 @@ const CalendarPage: React.FC = () => {
                   for (let d = 1; d <= daysCount; d++) {
                     const isSel = currentDate.getDate() === d;
                     const isToday = new Date().toDateString() === new Date(year, month, d).toDateString();
+                    const dayOfWeekMini = new Date(year, month, d).getDay();
+                    const isWeekendMini = dayOfWeekMini === 0 || dayOfWeekMini === 6;
                     days.push(
                       <button 
                         key={`mini-day-${d}`} 
@@ -670,7 +677,7 @@ const CalendarPage: React.FC = () => {
                           setCurrentDate(newD);
                         }}
                         className={`w-6 h-6 leading-6 rounded-full text-center hover:bg-brand-orange/10 font-bold transition-all ${
-                          isSel ? 'bg-brand-orange text-white' : isToday ? 'text-brand-orange border border-brand-orange/40' : 'text-brand-navy'
+                          isSel ? 'bg-brand-orange text-white' : isToday ? 'text-brand-orange border border-brand-orange/40' : isWeekendMini ? 'text-red-400' : 'text-brand-navy'
                         }`}
                       >
                         {d}
@@ -750,9 +757,9 @@ const CalendarPage: React.FC = () => {
             <CardContent className="p-0">
               {viewMode === 'month' && (
                 <div>
-                  <div className="grid grid-cols-7 border-b text-center py-3 bg-gray-50/20 text-xs font-bold text-gray-400">
+                  <div className="grid grid-cols-7 border-b text-center py-3 bg-gray-50/20 text-xs font-bold">
                     {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => (
-                      <span key={i}>{d}</span>
+                      <span key={i} className={i === 0 || i === 6 ? 'text-red-400 bg-red-50/60' : 'text-gray-400'}>{d}</span>
                     ))}
                   </div>
                   <div className="grid grid-cols-7 bg-gray-50/5">

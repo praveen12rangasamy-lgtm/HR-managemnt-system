@@ -5,8 +5,10 @@ import { Button } from '../ui/Button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { IndianRupee, Eye, EyeOff, FileDown, Loader2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 const PayrollSummary = () => {
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [showAmounts, setShowAmounts] = useState(false);
   const [metrics, setMetrics] = useState({
@@ -20,23 +22,31 @@ const PayrollSummary = () => {
 
   useEffect(() => {
     fetchPayrollData();
-  }, []);
+  }, [profile]);
 
   const fetchPayrollData = async () => {
     setLoading(true);
     try {
       // Fetch profiles with salaries
-      const { data: profiles, error } = await supabase
+      const { data: rawProfiles, error } = await supabase
         .from('profiles')
-        .select('id, full_name, department, salary');
+        .select('id, full_name, department, salary, role, email');
 
       if (error) throw error;
 
-      if (profiles) {
+      if (rawProfiles) {
+        let profiles = rawProfiles || [];
+        if (profile?.email === 'praveen12rangasamy@gmail.com') {
+          const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
+          profiles = profiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || '') && p.role !== 'admin');
+        } else {
+          profiles = profiles.filter(p => p.role !== 'admin');
+        }
+
         // Calculate Totals
         const total = profiles.reduce((sum, p) => sum + (Number(p.salary) || 0), 0);
-        const estDeductions = total * 0.12; // E.g., 12% PF/Tax estimate
-        const estBonus = total * 0.05; // E.g., 5% avg bonus
+        const estDeductions = total * 0.12; // 12% PF/Tax estimate
+        const estBonus = total * 0.05; // 5% avg bonus
 
         setMetrics({
           totalExpense: total,
@@ -64,14 +74,12 @@ const PayrollSummary = () => {
               bonus: Number(p.salary) * 0.05,
               net: Number(p.salary) * 0.95
             }))
-            .slice(0, 10)
         );
 
-        // Trend Mock (Static historical for context)
+        // Real Trend (Current Month data only)
+        const now = new Date();
         setMonthlyTrend([
-          { month: 'Apr', gross: total * 0.92, net: (total * 0.92) * 0.9 },
-          { month: 'May', gross: total * 0.95, net: (total * 0.95) * 0.9 },
-          { month: 'Current', gross: total, net: total - estDeductions }
+          { month: now.toLocaleString('en-US', { month: 'short' }), gross: total, net: total - estDeductions }
         ]);
       }
     } catch (err) {
@@ -91,7 +99,6 @@ const PayrollSummary = () => {
   };
 
   const logAction = (action: string) => {
-    // Current Audit Logic (LocalStorage fallback, real system would use a DB table)
     const logs = JSON.parse(localStorage.getItem('admin_audit_logs') || '[]');
     logs.push({
       action,
@@ -117,37 +124,37 @@ const PayrollSummary = () => {
 
   return (
     <div className="space-y-6">
-       <div className="flex justify-between items-center bg-brand-navy/30 p-5 rounded-3xl border border-white/5 backdrop-blur-xl">
+       <div className="flex justify-between items-center bg-gray-50 p-5 rounded-3xl border border-gray-100 shadow-md">
         <div className="flex items-center gap-4">
-          <div className={`p-3 rounded-2xl ${showAmounts ? 'bg-brand-teal text-navy' : 'bg-white/5 text-gray-500'} transition-all shadow-lg`}>
+          <div className={`p-3 rounded-2xl ${showAmounts ? 'bg-brand-teal text-brand-navy' : 'bg-gray-200 text-gray-500'} transition-all shadow-sm`}>
              <IndicatorIcon size={20} active={showAmounts}/>
           </div>
           <div>
-            <h4 className="text-white font-bold tracking-tight">Financial Confidentiality Mode</h4>
-            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{showAmounts ? 'Unmasked Access Active' : 'Level 1 Data Masking Active'}</p>
+            <h4 className="text-brand-navy font-bold tracking-tight">Financial Confidentiality Mode</h4>
+            <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{showAmounts ? 'Unmasked Access Active' : 'Level 1 Data Masking Active'}</p>
           </div>
         </div>
         <div className="flex gap-4">
           <Button 
             variant="outline" 
             onClick={toggleShowAmounts}
-            className={`rounded-xl border-none font-bold text-xs uppercase tracking-widest px-6 h-11 transition-all ${showAmounts ? 'bg-brand-teal text-navy hover:bg-brand-teal/80' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+            className={`rounded-xl border-none font-bold text-xs uppercase tracking-widest px-6 h-11 transition-all ${showAmounts ? 'bg-brand-teal text-brand-navy hover:bg-brand-teal/80' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             {showAmounts ? <EyeOff size={14} className="mr-2"/> : <Eye size={14} className="mr-2" />}
             {showAmounts ? 'Mask Salaries' : 'Reveal Data'}
           </Button>
-          <Button className="bg-white/10 hover:bg-white/20 text-white border-none rounded-xl font-bold text-xs uppercase tracking-widest px-6 h-11" onClick={() => logAction('EXPORTED_PAYROLL_REPORT')}>
+          <Button className="bg-brand-navy hover:bg-black text-white border-none rounded-xl font-bold text-xs uppercase tracking-widest px-6 h-11" onClick={() => logAction('EXPORTED_PAYROLL_REPORT')}>
             <FileDown size={14} className="mr-2" /> Download Report
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-l-4 border-l-brand-teal bg-brand-card shadow-2xl">
+        <Card className="border-l-4 border-l-brand-teal bg-white border-gray-100 shadow-xl">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Gross Monthly Liability</p>
-              <h3 className="text-2xl font-black mt-2 text-white">{formatAmount(metrics.totalExpense)}</h3>
+              <h3 className="text-2xl font-black mt-2 text-brand-navy">{formatAmount(metrics.totalExpense)}</h3>
             </div>
             <div className="p-4 bg-brand-teal/10 rounded-2xl text-brand-teal">
               <IndianRupee size={24} />
@@ -155,11 +162,11 @@ const PayrollSummary = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-status-amber bg-brand-card shadow-2xl">
+        <Card className="border-l-4 border-l-status-amber bg-white border-gray-100 shadow-xl">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Statutory Deductions (Est.)</p>
-              <h3 className="text-2xl font-black mt-2 text-white">{formatAmount(metrics.deductions)}</h3>
+              <h3 className="text-2xl font-black mt-2 text-brand-navy">{formatAmount(metrics.deductions)}</h3>
             </div>
             <div className="p-4 bg-status-amber/10 rounded-2xl text-status-amber">
               <AlertTriangle size={24} />
@@ -167,11 +174,11 @@ const PayrollSummary = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-status-green bg-brand-card shadow-2xl">
+        <Card className="border-l-4 border-l-status-green bg-white border-gray-100 shadow-xl">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Net Payable Disbursement</p>
-              <h3 className="text-2xl font-black mt-2 text-white">{formatAmount(metrics.totalExpense - metrics.deductions + metrics.bonus)}</h3>
+              <h3 className="text-2xl font-black mt-2 text-brand-navy">{formatAmount(metrics.totalExpense - metrics.deductions + metrics.bonus)}</h3>
             </div>
             <div className="p-4 bg-status-green/10 rounded-2xl text-status-green">
               <IndianRupee size={24} />
@@ -181,38 +188,38 @@ const PayrollSummary = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-brand-card border-white/5">
-          <CardHeader>
-            <CardTitle className="text-white text-lg font-bold">Historical Compensation Trend</CardTitle>
+        <Card className="bg-white border-gray-100 shadow-lg shadow-brand-navy/5">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-brand-navy text-lg font-bold">Historical Compensation Trend</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="month" stroke="#BAA290" fontSize={11} />
-                <YAxis stroke="#BAA290" fontSize={11} tickFormatter={(val) => `₹${(val/1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+                <XAxis dataKey="month" stroke="#5E718D" fontSize={11} />
+                <YAxis stroke="#5E718D" fontSize={11} tickFormatter={(val) => `₹${(val/1000).toFixed(0)}k`} />
                 <Tooltip 
                    contentStyle={{ backgroundColor: '#131F35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
                    formatter={(val: any) => showAmounts ? `₹${Number(val).toLocaleString()}` : '₹ •••••••'}
                 />
                 <Legend iconType="circle" />
                 <Bar dataKey="gross" fill="#00C2B2" name="Gross Allocation" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="net" fill="#00C48C/40" name="Post-Deduction Net" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="net" fill="rgba(0, 196, 140, 0.4)" name="Post-Deduction Net" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="bg-brand-card border-white/5">
-          <CardHeader>
-            <CardTitle className="text-white text-lg font-bold">Department Cost Allocation</CardTitle>
+        <Card className="bg-white border-gray-100 shadow-lg shadow-brand-navy/5">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-brand-navy text-lg font-bold">Department Cost Allocation</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={deptPayroll} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis type="number" stroke="#BAA290" fontSize={10} hide />
-                <YAxis type="category" dataKey="name" stroke="#BAA290" fontSize={11} width={100} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+                <XAxis type="number" stroke="#5E718D" fontSize={10} hide />
+                <YAxis type="category" dataKey="name" stroke="#5E718D" fontSize={11} width={100} />
                 <Tooltip 
                    contentStyle={{ backgroundColor: '#131F35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
                    formatter={(val: any) => showAmounts ? `₹${Number(val).toLocaleString()}` : '₹ •••••••'}
@@ -224,14 +231,14 @@ const PayrollSummary = () => {
         </Card>
       </div>
 
-      <Card className="bg-brand-card border-white/5 overflow-hidden">
-        <CardHeader className="bg-white/5 p-6">
-          <CardTitle className="text-white text-lg font-bold">Salary Ledger (Individual Breakdown)</CardTitle>
+      <Card className="bg-white border-gray-100 shadow-lg shadow-brand-navy/5 overflow-hidden">
+        <CardHeader className="bg-gray-50/50 p-6 border-b border-gray-100">
+          <CardTitle className="text-brand-navy text-lg font-bold">Salary Ledger (Individual Breakdown)</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
            <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="text-[10px] text-gray-500 uppercase bg-black/20 font-black tracking-widest border-b border-white/5">
+                <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 font-black tracking-widest border-b border-gray-100">
                   <tr>
                     <th className="px-8 py-5">Talent Name</th>
                     <th className="px-8 py-5">Sub-Org / Dept</th>
@@ -240,10 +247,10 @@ const PayrollSummary = () => {
                     <th className="px-8 py-5 text-right">Settlement Pay</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5 text-gray-300">
+                <tbody className="divide-y divide-gray-100 text-gray-600">
                   {detailedPayroll.map((row, i) => (
-                    <tr key={i} className="hover:bg-white/5 transition-colors group">
-                      <td className="px-8 py-5 font-bold text-white group-hover:text-brand-teal transition-colors uppercase">{row.name}</td>
+                    <tr key={i} className="hover:bg-gray-50/50 transition-colors group">
+                      <td className="px-8 py-5 font-bold text-brand-navy group-hover:text-brand-teal transition-colors uppercase">{row.name}</td>
                       <td className="px-8 py-5 text-gray-500 font-medium">{row.dept}</td>
                       <td className="px-8 py-5 font-mono">{formatAmount(row.gross)}</td>
                       <td className="px-8 py-5 text-status-amber font-mono">{formatAmount(row.deductions)}</td>
@@ -267,7 +274,7 @@ const IndicatorIcon = ({ size, active }: { size: number; active: boolean }) => (
     style={{
       width: size,
       height: size,
-      backgroundColor: active ? '#00dfc0' : '#4b5563',
+      backgroundColor: active ? '#00dfc0' : '#9ca3af',
       borderRadius: '50%',
       boxShadow: active ? '0 0 10px #00dfc0' : 'none',
     }}

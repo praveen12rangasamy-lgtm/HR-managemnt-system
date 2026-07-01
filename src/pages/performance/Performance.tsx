@@ -68,20 +68,20 @@ const Performance = () => {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-white/5 pb-8 gap-4">
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-100 pb-8 gap-4">
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
                         <div className="p-1 px-3 bg-brand-teal/10 text-brand-teal rounded-full text-[10px] font-bold uppercase tracking-widest border border-brand-teal/20 flex items-center gap-1">
                             <Lock size={10} /> Admin Only
                         </div>
-                        <h2 className="text-3xl font-bold text-white">Company Performance Dashboard</h2>
+                        <h2 className="text-3xl font-bold text-brand-navy">Company Performance Dashboard</h2>
                     </div>
                     <p className="text-gray-500 font-medium">Holistic real-time analytics for Vyara HR system.</p>
                 </div>
             </header>
 
             <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-brand-card p-2 rounded-2xl flex flex-wrap gap-2 border border-white/5 shadow-2xl">
+                <div className="bg-white p-2 rounded-2xl flex flex-wrap gap-2 border border-gray-200/60 shadow-lg shadow-brand-navy/5">
                     {companyTabs.map((tab) => (
                         <button
                             key={tab.name}
@@ -89,8 +89,8 @@ const Performance = () => {
                             className={`
                                 flex items-center gap-2 px-6 py-3 rounded-xl transition-all font-bold text-sm
                                 ${companySubTab === tab.name 
-                                    ? 'bg-brand-teal text-navy shadow-xl shadow-brand-teal/10 scale-105' 
-                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                    ? 'bg-brand-teal text-brand-navy shadow-md scale-105' 
+                                    : 'text-gray-500 hover:bg-gray-50 hover:text-brand-navy'
                                 }
                             `}
                         >

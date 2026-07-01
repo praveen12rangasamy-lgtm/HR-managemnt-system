@@ -39,7 +39,16 @@ const PayDocs = () => {
 
       if (empData) {
         // Filter out self if ID is different but email is same (edge case)
-        const filteredEmps = empData.filter(e => e.email !== profile?.email);
+        let filteredEmps = empData.filter(e => e.email !== profile?.email);
+        
+        // If primary admin, exclude fake profiles
+        if (profile.email === 'praveen12rangasamy@gmail.com') {
+          const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
+          filteredEmps = filteredEmps.filter(e => !fakeNames.includes(e.full_name?.toLowerCase() || '') && e.role !== 'admin');
+        } else {
+          filteredEmps = filteredEmps.filter(e => e.role !== 'admin');
+        }
+
         setEmployees(filteredEmps);
 
         // 2. Fetch Payroll Summary for current month

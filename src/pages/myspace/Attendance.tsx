@@ -148,9 +148,9 @@ const Attendance = () => {
       .update({ status: 'present', entry_type: 'manual' })
       .eq('id', log.id);
     if (error) {
-      showToast('❌ Failed to approve attendance.', 'error');
+      showToast('Failed to approve attendance.', 'error');
     } else {
-      showToast('✅ Attendance approved — marked as Present.');
+      showToast('Attendance approved — marked as Present.');
       await fetchAdminEntranceLogs();
     }
     setActionLoading(null);
@@ -159,14 +159,23 @@ const Attendance = () => {
   const handleReject = async (log: AttendanceLog) => {
     if (!log.id) return;
     setActionLoading(log.id);
+    // Clock-out rejection: keep clock-in approved, just clear clock_out
+    // Clock-in rejection: mark absent and clear all times
+    const isClockOutRejection = log.entry_type === 'manual' && log.status === 'absent' && log.clock_in !== null && log.clock_out !== null;
+    let updatePayload: any;
+    if (isClockOutRejection) {
+      updatePayload = { clock_out: null, status: 'present', entry_type: 'manual' };
+    } else {
+      updatePayload = { status: 'absent', entry_type: 'manual', clock_in: null, clock_out: null };
+    }
     const { error } = await supabase
       .from('attendance')
-      .update({ status: 'absent', entry_type: 'manual', clock_in: null, clock_out: null })
+      .update(updatePayload)
       .eq('id', log.id);
     if (error) {
-      showToast('❌ Failed to reject attendance.', 'error');
+      showToast('Failed to reject attendance.', 'error');
     } else {
-      showToast('🚫 Attendance request rejected.', 'error');
+      showToast(isClockOutRejection ? 'Clock-out request rejected.' : 'Attendance request rejected.', 'error');
       await fetchAdminEntranceLogs();
     }
     setActionLoading(null);
@@ -186,63 +195,99 @@ const Attendance = () => {
   // ─── Employee: submit manual attendance (pending approval) ─────────────────
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile?.id || !manualData.inTime) return;
+    if (!profile?.id) return;
 
     // Restrict to today only
     const todayStr = new Date().toISOString().split('T')[0];
     if (manualData.date !== todayStr) {
-      showToast('❌ You can only mark attendance for today.', 'error');
+      showToast('You can only mark attendance for today.', 'error');
       return;
     }
 
     setSyncing(true);
-
-    const clock_in = new Date(`${manualData.date}T${manualData.inTime}:00`).toISOString();
-    const clock_out = manualData.outTime
-      ? new Date(`${manualData.date}T${manualData.outTime}:00`).toISOString()
-      : null;
+    let toastMessage = 'Request submitted! Awaiting admin approval.';
 
     try {
       // Check if already submitted today
       const { data: existing } = await supabase
         .from('attendance')
-        .select('id, status, entry_type')
+        .select('id, status, entry_type, clock_in, clock_out')
         .eq('user_id', profile.id)
         .eq('date', manualData.date)
         .maybeSingle();
 
       if (existing) {
-        const isPending = existing.entry_type === 'manual' && existing.status === 'absent' && existing.clock_in !== null;
-        const isApproved = existing.status === 'present';
-        if (isPending) {
-          showToast('⏳ Your attendance request is already pending admin approval.', 'error');
+        const isClockInPendingNow = existing.entry_type === 'manual' && existing.status === 'absent' && existing.clock_in !== null && existing.clock_out === null;
+        const isClockOutPendingNow = existing.entry_type === 'manual' && existing.status === 'absent' && existing.clock_in !== null && existing.clock_out !== null;
+        const isClockInApprovedNow = existing.status === 'present' && existing.entry_type === 'manual' && !existing.clock_out;
+        const isFullyApprovedNow = existing.status === 'present' && existing.entry_type === 'manual' && !!existing.clock_out;
+
+        if (isClockInPendingNow) {
+          showToast('Your clock-in request is already pending admin approval.', 'error');
           setSyncing(false);
           return;
         }
-        if (isApproved) {
-          showToast('✅ Your attendance is already approved for today.', 'error');
+        if (isClockOutPendingNow) {
+          showToast('Your clock-out request is already pending admin approval.', 'error');
           setSyncing(false);
           return;
         }
-        // Rejected or other — allow resubmission
-        const { error } = await supabase
-          .from('attendance')
-          .update({ clock_in, clock_out, status: 'absent', entry_type: 'manual' })
-          .eq('id', existing.id);
-        if (error) throw error;
+        if (isFullyApprovedNow) {
+          showToast('Your attendance is already fully approved for today.', 'error');
+          setSyncing(false);
+          return;
+        }
+        if (isClockInApprovedNow) {
+          // Clock-in is approved — submit clock-out for approval
+          const clock_out = manualData.outTime
+            ? new Date(`${manualData.date}T${manualData.outTime}:00`).toISOString()
+            : null;
+          if (!clock_out) {
+            showToast('Please enter a clock-out time.', 'error');
+            setSyncing(false);
+            return;
+          }
+          const { error } = await supabase
+            .from('attendance')
+            .update({ clock_out, status: 'absent', entry_type: 'manual' })
+            .eq('id', existing.id);
+          if (error) throw error;
+          toastMessage = 'Clock-out submitted! Awaiting admin approval.';
+        } else {
+          // Rejected — resubmit clock-in
+          if (!manualData.inTime) {
+            showToast('Please enter a clock-in time.', 'error');
+            setSyncing(false);
+            return;
+          }
+          const clock_in = new Date(`${manualData.date}T${manualData.inTime}:00`).toISOString();
+          const { error } = await supabase
+            .from('attendance')
+            .update({ clock_in, clock_out: null, status: 'absent', entry_type: 'manual' })
+            .eq('id', existing.id);
+          if (error) throw error;
+          toastMessage = 'Clock-in resubmitted! Awaiting admin approval.';
+        }
       } else {
-        // New submission — stored as absent + pending_approval until admin approves
+        // New submission — clock-in only (clock-out comes after approval)
+        if (!manualData.inTime) {
+          showToast('Please enter a clock-in time.', 'error');
+          setSyncing(false);
+          return;
+        }
+        const clock_in = new Date(`${manualData.date}T${manualData.inTime}:00`).toISOString();
         const { error } = await supabase
           .from('attendance')
           .insert({
             user_id: profile.id,
             date: manualData.date,
             clock_in,
-            clock_out,
+            clock_out: null,
             status: 'absent',
             entry_type: 'manual'
           });
         if (error) throw error;
+        toastMessage = 'Clock-in submitted! Awaiting admin approval.';
       }
 
       const now = new Date();
@@ -250,11 +295,11 @@ const Attendance = () => {
       const mm = String(now.getMinutes()).padStart(2, '0');
       setManualData({ date: now.toISOString().split('T')[0], inTime: `${hh}:${mm}`, outTime: '' });
       await fetchAttendance();
-      showToast('✓ Attendance request submitted! Awaiting admin approval.');
+      showToast(toastMessage);
     } catch (err: unknown) {
       const msg = (err as any)?.message || JSON.stringify(err);
       console.error('Manual attendance submission failed:', msg);
-      showToast(`❌ Error: ${msg}`, 'error');
+      showToast(`Error: ${msg}`, 'error');
     } finally {
       setSyncing(false);
     }
@@ -268,7 +313,7 @@ const Attendance = () => {
       const source = adminLogs.filter(l =>
         adminTab === 'pending'
           ? (l.entry_type === 'manual' && l.status === 'absent' && l.clock_in !== null)
-          : l.status === 'present'
+          : (l.status === 'present' && l.entry_type === 'manual')
       );
       if (!term) {
         setFilteredEmployees(source);
@@ -296,11 +341,30 @@ const Attendance = () => {
 
   const todayRecord = !isAdmin ? logs.find(l => l.date === new Date().toISOString().split('T')[0]) : null;
 
+  // Prefill outTime with current device time when clock-in is approved
+  useEffect(() => {
+    if (!isAdmin && todayRecord && todayRecord.status === 'present' && todayRecord.entry_type === 'manual' && !todayRecord.clock_out) {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      setManualData(prev => {
+        if (!prev.outTime) {
+          return { ...prev, outTime: `${hh}:${mm}` };
+        }
+        return prev;
+      });
+    }
+  }, [todayRecord, isAdmin]);
+
   // Derived lists for admin tabs
-  const pendingLogs = adminLogs.filter(l => l.entry_type === 'manual' && l.status === 'absent' && l.clock_in !== null);
-  const approvedLogs = adminLogs.filter(l => l.status === 'present');
+  const pendingLogs = adminLogs.filter(l =>
+    l.entry_type === 'manual' && l.status === 'absent' && l.clock_in !== null
+  );
+  const approvedLogs = adminLogs.filter(l => l.status === 'present' && l.entry_type === 'manual');
   const displayedAdminLogs = searchDate
-    ? filteredEmployees.filter(l => adminTab === 'pending' ? (l.entry_type === 'manual' && l.status === 'absent' && l.clock_in !== null) : l.status === 'present')
+    ? filteredEmployees.filter(l => adminTab === 'pending'
+        ? (l.entry_type === 'manual' && l.status === 'absent' && l.clock_in !== null)
+        : (l.status === 'present' && l.entry_type === 'manual'))
     : (adminTab === 'pending' ? pendingLogs : approvedLogs);
 
   // ─── ADMIN VIEW ────────────────────────────────────────────────────────────
@@ -414,6 +478,17 @@ const Attendance = () => {
                     <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{log.date}</span>
+                        {adminTab === 'pending' && (
+                          <div className="mt-1">
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                              log.clock_out
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {log.clock_out ? 'Clock-Out' : 'Clock-In'}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-4 font-bold text-brand-teal whitespace-nowrap">{log.profiles?.employee_id || 'N/A'}</td>
                       <td className="px-4 py-4 font-semibold text-brand-navy whitespace-nowrap">{log.profiles?.full_name || 'N/A'}</td>
@@ -479,13 +554,19 @@ const Attendance = () => {
   // ─── EMPLOYEE VIEW ─────────────────────────────────────────────────────────
   const todayStatusBadge = () => {
     if (!todayRecord) return { label: 'Not Submitted', color: 'bg-gray-400' };
-    if (todayRecord.entry_type === 'manual' && todayRecord.status === 'absent' && todayRecord.clock_in !== null) return { label: 'Pending Approval', color: 'bg-amber-500' };
+    if (todayRecord.entry_type === 'manual' && todayRecord.status === 'absent' && todayRecord.clock_in !== null && todayRecord.clock_out === null) return { label: 'Clock-In Pending Approval', color: 'bg-amber-500' };
     if (todayRecord.entry_type === 'manual' && todayRecord.status === 'absent' && todayRecord.clock_in === null) return { label: 'Rejected', color: 'bg-rose-500' };
-    if (todayRecord.status === 'present') return { label: 'Approved — Present', color: 'bg-emerald-500' };
+    if (todayRecord.entry_type === 'manual' && todayRecord.status === 'absent' && todayRecord.clock_in !== null && todayRecord.clock_out !== null) return { label: 'Clock-Out Pending Approval', color: 'bg-purple-500' };
+    if (todayRecord.status === 'present' && !todayRecord.clock_out) return { label: 'Clock-In Approved', color: 'bg-emerald-500' };
+    if (todayRecord.status === 'present' && todayRecord.clock_out) return { label: 'Fully Approved — Present', color: 'bg-emerald-600' };
     return { label: todayRecord.status, color: 'bg-gray-400' };
   };
 
   const badge = todayStatusBadge();
+  const isClockInPending = todayRecord?.entry_type === 'manual' && todayRecord?.status === 'absent' && !!todayRecord?.clock_in && !todayRecord?.clock_out;
+  const isClockInApproved = todayRecord?.status === 'present' && todayRecord?.entry_type === 'manual' && !todayRecord?.clock_out;
+  const isClockOutPending = todayRecord?.entry_type === 'manual' && todayRecord?.status === 'absent' && !!todayRecord?.clock_in && !!todayRecord?.clock_out;
+  const isFullyApproved = todayRecord?.status === 'present' && !!todayRecord?.clock_out && todayRecord?.entry_type === 'manual';
 
   return (
     <div className="space-y-6 max-w-6xl relative">
@@ -525,11 +606,17 @@ const Attendance = () => {
                       {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                     </span>
                   </div>
-                  {todayRecord?.entry_type === 'manual' && todayRecord.status === 'absent' && todayRecord.clock_in !== null && (
-                    <p className="text-amber-300 text-xs mt-2">⏳ Your request has been sent to admin for approval.</p>
+                  {isClockInPending && (
+                    <p className="text-amber-300 text-xs mt-2">Your clock-in request has been sent to admin for approval.</p>
                   )}
                   {todayRecord?.entry_type === 'manual' && todayRecord.status === 'absent' && todayRecord.clock_in === null && (
-                    <p className="text-rose-300 text-xs mt-2">🚫 Your request was rejected. You may resubmit.</p>
+                    <p className="text-rose-300 text-xs mt-2">Your request was rejected. You may resubmit.</p>
+                  )}
+                  {isClockInApproved && (
+                    <p className="text-emerald-300 text-xs mt-2">Clock-in approved. Please submit your clock-out time below.</p>
+                  )}
+                  {isClockOutPending && (
+                    <p className="text-purple-300 text-xs mt-2">Your clock-out request has been sent to admin for approval.</p>
                   )}
                 </div>
               </div>
@@ -644,59 +731,117 @@ const Attendance = () => {
             </CardContent>
           </Card>
 
-          {/* Manual Entry form */}
+          {/* Manual Entry form — state-aware */}
           <Card className="border-t-4 border-t-brand-navy">
             <CardHeader>
-              <CardTitle className="text-lg">Request Attendance</CardTitle>
+              <CardTitle className="text-lg">
+                {isClockInApproved ? 'Submit Clock Out' : 'Request Attendance'}
+              </CardTitle>
               <p className="text-xs text-gray-400">
-                Submit your attendance for <span className="font-semibold text-brand-navy">
-                  {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </span>. Admin will verify and approve.
+                {isClockInApproved
+                  ? <>Clock-in approved. Now submit your clock-out for <span className="font-semibold text-brand-navy">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>.</>
+                  : <>Submit your attendance for <span className="font-semibold text-brand-navy">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>. Admin will verify and approve.</>
+                }
               </p>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleManualSubmit} className="space-y-4">
-                {/* Date — locked to today */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase">Date (Today Only)</label>
-                  <div className="flex items-center gap-2 w-full border border-brand-teal/40 bg-brand-teal/5 rounded-lg p-2">
-                    <CalendarDays size={14} className="text-brand-teal shrink-0" />
-                    <span className="text-xs font-bold text-brand-navy flex-1">
-                      {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-                    </span>
-                    <span className="text-[10px] text-brand-teal font-bold uppercase bg-brand-teal/10 px-2 py-0.5 rounded-full">Locked</span>
+              {/* Clock-out pending state */}
+              {isClockOutPending ? (
+                <div className="text-center py-6 space-y-3">
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto">
+                    <Clock size={22} className="text-purple-500" />
                   </div>
-                  <input type="hidden" value={manualData.date} />
+                  <p className="text-sm font-semibold text-brand-navy">Clock-Out Pending Approval</p>
+                  <p className="text-xs text-gray-500">Your clock-out has been submitted. Waiting for admin review.</p>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label htmlFor="manual-clock-in" className="text-[10px] font-bold text-gray-500 uppercase">Clock In *</label>
-                    <input
-                      id="manual-clock-in"
-                      type="time"
-                      className="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-brand-teal outline-none"
-                      value={manualData.inTime}
-                      onChange={(e) => setManualData({ ...manualData, inTime: e.target.value })}
-                      required
-                    />
+              ) : isFullyApproved ? (
+                /* Fully approved state */
+                <div className="text-center py-6 space-y-3">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle size={22} className="text-emerald-500" />
                   </div>
-                  <div className="space-y-1">
-                    <label htmlFor="manual-clock-out" className="text-[10px] font-bold text-gray-500 uppercase">Clock Out</label>
-                    <input
-                      id="manual-clock-out"
-                      type="time"
-                      className="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-brand-teal outline-none"
-                      value={manualData.outTime}
-                      onChange={(e) => setManualData({ ...manualData, outTime: e.target.value })}
-                    />
-                  </div>
+                  <p className="text-sm font-semibold text-brand-navy">Attendance Complete</p>
+                  <p className="text-xs text-gray-500">Both clock-in and clock-out have been approved for today.</p>
                 </div>
+              ) : isClockInPending ? (
+                /* Clock-in awaiting approval — block the form */
+                <div className="text-center py-6 space-y-3">
+                  <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+                    <Clock size={22} className="text-amber-500" />
+                  </div>
+                  <p className="text-sm font-semibold text-brand-navy">Clock-In Pending Approval</p>
+                  <p className="text-xs text-gray-500">Waiting for admin to approve your clock-in. Clock-out will be available once approved.</p>
+                </div>
+              ) : (
+                /* Active form — clock-in (new/rejected) or clock-out (approved) */
+                <form onSubmit={handleManualSubmit} className="space-y-4">
+                  {/* Date — locked to today */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Date (Today Only)</label>
+                    <div className="flex items-center gap-2 w-full border border-brand-teal/40 bg-brand-teal/5 rounded-lg p-2">
+                      <CalendarDays size={14} className="text-brand-teal shrink-0" />
+                      <span className="text-xs font-bold text-brand-navy flex-1">
+                        {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                      </span>
+                      <span className="text-[10px] text-brand-teal font-bold uppercase bg-brand-teal/10 px-2 py-0.5 rounded-full">Locked</span>
+                    </div>
+                    <input type="hidden" value={manualData.date} />
+                  </div>
 
-                <Button type="submit" disabled={syncing} className="w-full text-xs font-bold py-2 bg-brand-navy hover:bg-black">
-                  {syncing ? 'Submitting...' : 'Submit for Approval'}
-                </Button>
-              </form>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Clock In */}
+                    <div className="space-y-1">
+                      <label htmlFor="manual-clock-in" className="text-[10px] font-bold text-gray-500 uppercase">
+                        Clock In {!isClockInApproved && '*'}
+                      </label>
+                      {isClockInApproved ? (
+                        /* Locked — shows approved time */
+                        <div className="flex items-center gap-2 w-full border border-emerald-200 bg-emerald-50 rounded-lg p-2">
+                          <CheckCircle size={12} className="text-emerald-500 shrink-0" />
+                          <span className="text-xs font-bold text-emerald-700 flex-1">{formatTime(todayRecord?.clock_in)}</span>
+                          <span className="text-[9px] text-emerald-600 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">Approved</span>
+                        </div>
+                      ) : (
+                        <input
+                          id="manual-clock-in"
+                          type="time"
+                          className="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-brand-teal outline-none"
+                          value={manualData.inTime}
+                          onChange={(e) => setManualData({ ...manualData, inTime: e.target.value })}
+                          required
+                        />
+                      )}
+                    </div>
+
+                    {/* Clock Out */}
+                    <div className="space-y-1">
+                      <label htmlFor="manual-clock-out" className="text-[10px] font-bold text-gray-500 uppercase">
+                        Clock Out {isClockInApproved && '*'}
+                      </label>
+                      <input
+                        id="manual-clock-out"
+                        type="time"
+                        className={`w-full border rounded-lg p-2 text-xs outline-none transition-colors ${
+                          isClockInApproved
+                            ? 'border-brand-teal/50 bg-white focus:ring-brand-teal'
+                            : 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                        }`}
+                        value={manualData.outTime}
+                        onChange={(e) => isClockInApproved && setManualData({ ...manualData, outTime: e.target.value })}
+                        disabled={!isClockInApproved}
+                        required={isClockInApproved}
+                      />
+                      {!isClockInApproved && (
+                        <p className="text-[9px] text-gray-400 mt-0.5">Enabled after clock-in is approved</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <Button type="submit" disabled={syncing} className="w-full text-xs font-bold py-2 bg-brand-navy hover:bg-black">
+                    {syncing ? 'Submitting...' : isClockInApproved ? 'Submit Clock Out for Approval' : 'Submit Clock In for Approval'}
+                  </Button>
+                </form>
+              )}
             </CardContent>
           </Card>
         </div>

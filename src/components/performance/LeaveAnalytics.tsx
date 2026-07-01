@@ -5,10 +5,12 @@ import { Button } from '../ui/Button';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Calendar, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 const COLORS = ['#00C2B2', '#FFB020', '#00C48C', '#FF4560', '#775DD0'];
 
 const LeaveAnalytics = () => {
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({
     total: 0,
@@ -21,7 +23,7 @@ const LeaveAnalytics = () => {
 
   useEffect(() => {
     fetchLeaveData();
-  }, []);
+  }, [profile]);
 
   const fetchLeaveData = async () => {
     setLoading(true);
@@ -29,14 +31,22 @@ const LeaveAnalytics = () => {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const { data: leaves, error } = await supabase
+      const { data: rawLeaves, error } = await supabase
         .from('leave_requests')
-        .select('*, profiles(full_name, department)')
+        .select('*, profiles(full_name, department, role)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      if (leaves) {
+      if (rawLeaves) {
+        let leaves = rawLeaves || [];
+        if (profile?.email === 'praveen12rangasamy@gmail.com') {
+          const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
+          leaves = leaves.filter(l => !fakeNames.includes(l.profiles?.full_name?.toLowerCase() || '') && l.profiles?.role !== 'admin');
+        } else {
+          leaves = leaves.filter(l => l.profiles?.role !== 'admin');
+        }
+
         // Metrics (Current Month)
         const currentMonthLeaves = leaves.filter(l => new Date(l.created_at) >= firstDayOfMonth);
         
@@ -53,11 +63,9 @@ const LeaveAnalytics = () => {
         });
         setTypeData(Object.entries(types).map(([name, value]) => ({ name, value })));
 
-        // Trend (Simple Mock for now, real needs cross-month)
+        // Real Trend (Current Month data only)
         setTrendData([
-          { month: 'Apr', total: 22, avg: 25 },
-          { month: 'May', total: 30, avg: 26 },
-          { month: 'Jun', total: leaves.length, avg: 24 }
+          { month: now.toLocaleString('en-US', { month: 'short' }), total: leaves.length, avg: leaves.length }
         ]);
 
         // Pending Table
@@ -95,11 +103,11 @@ const LeaveAnalytics = () => {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-l-4 border-l-brand-teal bg-brand-card shadow-xl">
+        <Card className="border-l-4 border-l-brand-teal bg-white border-gray-100 shadow-xl">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-400">Total Approved (Month)</p>
-              <h3 className="text-3xl font-black mt-2 text-white">{metrics.total}</h3>
+              <p className="text-sm font-medium text-gray-500">Total Approved (Month)</p>
+              <h3 className="text-3xl font-black mt-2 text-brand-navy">{metrics.total}</h3>
             </div>
             <div className="p-4 bg-brand-teal/10 rounded-2xl text-brand-teal">
               <Calendar size={24} />
@@ -107,11 +115,11 @@ const LeaveAnalytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-status-amber bg-brand-card shadow-xl">
+        <Card className="border-l-4 border-l-status-amber bg-white border-gray-100 shadow-xl">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-400">Active Requests</p>
-              <h3 className="text-3xl font-black mt-2 text-white">{metrics.pending}</h3>
+              <p className="text-sm font-medium text-gray-500">Active Requests</p>
+              <h3 className="text-3xl font-black mt-2 text-brand-navy">{metrics.pending}</h3>
             </div>
             <div className="p-4 bg-status-amber/10 rounded-2xl text-status-amber">
               <CheckCircle size={24} />
@@ -119,11 +127,11 @@ const LeaveAnalytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500 bg-brand-card shadow-xl">
+        <Card className="border-l-4 border-l-red-500 bg-white border-gray-100 shadow-xl">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-400">Denied Applications</p>
-              <h3 className="text-3xl font-black mt-2 text-white">{metrics.rejected}</h3>
+              <p className="text-sm font-medium text-gray-500">Denied Applications</p>
+              <h3 className="text-3xl font-black mt-2 text-brand-navy">{metrics.rejected}</h3>
             </div>
             <div className="p-4 bg-red-500/10 rounded-2xl text-red-500">
               <XCircle size={24} />
@@ -133,9 +141,9 @@ const LeaveAnalytics = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-brand-card border-white/5">
-          <CardHeader>
-            <CardTitle className="text-white text-lg font-bold">Leave Distribution by Type</CardTitle>
+        <Card className="bg-white border-gray-100 shadow-lg shadow-brand-navy/5">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-brand-navy text-lg font-bold">Leave Distribution by Type</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -162,22 +170,22 @@ const LeaveAnalytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-brand-card border-white/5">
-          <CardHeader>
-            <CardTitle className="text-white text-lg font-bold">Leave Velocity Trend</CardTitle>
+        <Card className="bg-white border-gray-100 shadow-lg shadow-brand-navy/5">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-brand-navy text-lg font-bold">Leave Velocity Trend</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="month" stroke="#BAA290" fontSize={11} />
-                <YAxis stroke="#BAA290" fontSize={11} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
+                <XAxis dataKey="month" stroke="#5E718D" fontSize={11} />
+                <YAxis stroke="#5E718D" fontSize={11} />
                 <Tooltip 
                    contentStyle={{ backgroundColor: '#131F35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
                 />
                 <Legend iconType="circle" />
                 <Line type="monotone" dataKey="total" stroke="#00C2B2" strokeWidth={4} dot={{ r: 5, fill: '#00C2B2' }} name="Total Requests" />
-                <Line type="monotone" dataKey="avg" stroke="#BAA290" strokeDasharray="5 5" strokeWidth={1} dot={false} name="Benchmarks" />
+                <Line type="monotone" dataKey="avg" stroke="#5E718D" strokeDasharray="5 5" strokeWidth={1} dot={false} name="Benchmarks" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -185,9 +193,9 @@ const LeaveAnalytics = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1 bg-brand-card border-white/5">
-          <CardHeader>
-            <CardTitle className="text-white text-lg font-bold">Time-Off Distribution</CardTitle>
+        <Card className="lg:col-span-1 bg-white border-gray-100 shadow-lg shadow-brand-navy/5">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-brand-navy text-lg font-bold">Time-Off Distribution</CardTitle>
           </CardHeader>
           <CardContent>
              <div className="grid grid-cols-7 gap-1.5 text-center">
@@ -195,8 +203,8 @@ const LeaveAnalytics = () => {
                  <div key={day} className="text-[10px] font-black text-gray-500 mb-2 uppercase tracking-widest">{day}</div>
                ))}
                {Array.from({ length: 35 }).map((_, i) => (
-                 <div key={i} className={`h-9 rounded-xl flex flex-col items-center justify-center border border-white/5 transition-all cursor-pointer hover:bg-white/5 ${i > 5 && i < 32 && (i % 7 === 0 || i % 7 === 6) ? 'bg-black/40' : 'bg-black/20'}`}>
-                    <span className={`text-[10px] font-bold ${i > 5 && i < 32 ? 'text-gray-400' : 'text-gray-700'}`}>{i > 5 && i < 32 ? i - 5 : ''}</span>
+                 <div key={i} className={`h-9 rounded-xl flex flex-col items-center justify-center border border-gray-100 transition-all cursor-pointer hover:bg-gray-50 ${i > 5 && i < 32 && (i % 7 === 0 || i % 7 === 6) ? 'bg-gray-100/55' : 'bg-gray-50/50'}`}>
+                    <span className={`text-[10px] font-bold ${i > 5 && i < 32 ? 'text-gray-600' : 'text-gray-300'}`}>{i > 5 && i < 32 ? i - 5 : ''}</span>
                  </div>
                ))}
              </div>
@@ -204,15 +212,15 @@ const LeaveAnalytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2 bg-brand-card border-white/5 overflow-hidden">
-          <CardHeader className="bg-white/5 p-6 flex justify-between items-center">
-            <CardTitle className="text-white text-lg font-bold">Leave Approval Queue</CardTitle>
+        <Card className="lg:col-span-2 bg-white border-gray-100 shadow-lg shadow-brand-navy/5 overflow-hidden">
+          <CardHeader className="bg-gray-50/50 p-6 border-b border-gray-100 flex justify-between items-center">
+            <CardTitle className="text-brand-navy text-lg font-bold">Leave Approval Queue</CardTitle>
             <Badge variant="amber" className="font-black uppercase text-[9px] tracking-widest px-3">Attention Needed</Badge>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-[10px] text-gray-500 uppercase bg-black/20 font-black tracking-widest border-b border-white/5">
+                <thead className="text-[10px] text-gray-500 uppercase bg-gray-50 font-black tracking-widest border-b border-gray-100">
                   <tr>
                     <th className="px-6 py-5">Employee</th>
                     <th className="px-6 py-5">Time Frame</th>
@@ -220,29 +228,29 @@ const LeaveAnalytics = () => {
                     <th className="px-6 py-5 text-right">Direct Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-gray-100">
                   {pendingRequests.map((row) => (
-                    <tr key={row.id} className="hover:bg-white/5 transition-colors group">
+                    <tr key={row.id} className="hover:bg-gray-50/50 transition-colors group">
                       <td className="px-6 py-5">
-                        <div className="font-black text-white group-hover:text-brand-teal transition-colors">{row.profiles?.full_name}</div>
+                        <div className="font-black text-brand-navy group-hover:text-brand-teal transition-colors">{row.profiles?.full_name}</div>
                         <div className="text-[10px] text-brand-teal font-black uppercase tracking-tighter">{row.leave_type} • {row.profiles?.department}</div>
                       </td>
-                      <td className="px-6 py-5 text-gray-400 font-mono text-xs">
+                      <td className="px-6 py-5 text-gray-500 font-mono text-xs">
                         {new Date(row.start_date).toLocaleDateString()} - {new Date(row.end_date).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-5 text-center font-black text-white bg-white/5">{row.total_days || 1} Day(s)</td>
+                      <td className="px-6 py-5 text-center font-black text-brand-navy bg-gray-50/50">{row.total_days || 1} Day(s)</td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex justify-end gap-2">
                           <Button 
                             onClick={() => handleAction(row.id, 'approved')}
-                            className="bg-brand-teal hover:bg-emerald-600 text-navy font-black text-[10px] uppercase tracking-widest px-4 h-9 rounded-xl border-none shadow-lg shadow-brand-teal/10"
+                            className="bg-brand-teal hover:bg-emerald-600 text-brand-navy font-black text-[10px] uppercase tracking-widest px-4 h-9 rounded-xl border-none shadow-md shadow-brand-teal/10"
                           >
                             Approve
                           </Button>
                           <Button 
                             onClick={() => handleAction(row.id, 'rejected')}
                             variant="outline" 
-                            className="border-red-500/30 text-red-500 hover:bg-red-500/10 font-black text-[10px] uppercase tracking-widest px-4 h-9 rounded-xl"
+                            className="border-red-500/30 text-red-500 hover:bg-red-50 font-black text-[10px] uppercase tracking-widest px-4 h-9 rounded-xl"
                           >
                             Deny
                           </Button>

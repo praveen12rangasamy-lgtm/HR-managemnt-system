@@ -67,17 +67,32 @@ const Dashboard = () => {
   useEffect(() => {
     if (profile?.role === 'employee') {
       const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
-      const empSub = allSubmissions[profile.employeeId || profile.employee_id] || {};
-      setSubmission(prev => ({ ...prev, ...empSub }));
+      const empSub = (profile.employee_id ? allSubmissions[profile.employee_id] : null) || 
+                     allSubmissions[profile.employeeId] || 
+                     allSubmissions[profile.id] || {};
+      
+      const names = profile.full_name ? profile.full_name.split(' ') : ['', ''];
+      const firstName = names[0] || '';
+      const lastName = names.slice(1).join(' ') || '';
+
+      setSubmission(prev => ({ 
+        ...prev,
+        firstName: prev.firstName || empSub.firstName || firstName,
+        lastName: prev.lastName || empSub.lastName || lastName,
+        email: prev.email || empSub.email || profile.email || '',
+        employeeId: prev.employeeId || empSub.employeeId || profile.employee_id || '',
+        jobTitle: prev.jobTitle || empSub.jobTitle || profile.designation || '',
+        ...empSub 
+      }));
     }
   }, [profile]);
 
   const handleDocSubmit = () => {
     const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
-    const empId = profile?.employeeId || profile?.employee_id;
+    const empId = profile?.employee_id || profile?.employeeId || profile?.id;
     if (!empId) return;
 
-    allSubmissions[empId] = {
+    const dataToSave = {
       ...submission,
       bankAcc: submission.bankAcc || 'Uploaded',
       ifsc: submission.ifsc || 'Uploaded',
@@ -88,9 +103,22 @@ const Dashboard = () => {
       photo: true,
       submittedAt: new Date().toISOString()
     };
+
+    allSubmissions[empId] = dataToSave;
+    
+    // Save under all fallback keys to guarantee admin can find it
+    if (profile?.id) {
+      allSubmissions[profile.id] = dataToSave;
+    }
+    if (profile?.employee_id) {
+      allSubmissions[profile.employee_id] = dataToSave;
+    }
+    if (profile?.employeeId) {
+      allSubmissions[profile.employeeId] = dataToSave;
+    }
     
     localStorage.setItem('hr_employee_submissions', JSON.stringify(allSubmissions));
-    setSubmission(allSubmissions[empId]);
+    setSubmission(dataToSave);
     alert('Onboarding documents submitted successfully for review!');
   };
 
@@ -222,12 +250,14 @@ const Dashboard = () => {
           .select('*')
           .order('full_name', { ascending: true });
         
-        const dbProfiles = (dbData || []).filter(p => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com');
+        if (error) throw error;
+        
+        let dbProfiles = (dbData || []).filter(p => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com');
 
         // 2. Get local applicants in onboarding pipeline from localStorage
         const localApplicants = JSON.parse(localStorage.getItem('hr_applicants') || '[]');
         const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute'];
-        const localOnboarding = localApplicants
+        let localOnboarding = localApplicants
           .filter((a: any) => a.status === 'OfferSent' || a.status === 'OnboardingInProgress')
           .filter((a: any) => a.name && !mockOfficeNames.includes(a.name))
           .map((a: any) => ({
@@ -240,6 +270,13 @@ const Dashboard = () => {
             department: 'Unassigned',
             onboarding_status: a.status
           }));
+
+        // Filter to exclude fake profiles if logged in as primary admin
+        if (profile?.email === 'praveen12rangasamy@gmail.com') {
+          const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
+          dbProfiles = dbProfiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || ''));
+          localOnboarding = localOnboarding.filter((a: any) => !fakeNames.includes(a.full_name?.toLowerCase() || ''));
+        }
 
         // 3. Unify and deduplicate by employee_id or email or id
         const unified = [...localOnboarding, ...dbProfiles];
@@ -353,11 +390,17 @@ const Dashboard = () => {
       // Admin Dashboard should show stats for ALL employees (excluding admins)
       const { data: adminProfiles } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, full_name')
         .neq('role', 'admin')
         .neq('email', 'praveen12rangasamy@gmail.com');
       
-      const employeeIds = adminProfiles?.map(p => p.id) || [];
+      let filteredAdminProfiles = adminProfiles || [];
+      if (profile?.email === 'praveen12rangasamy@gmail.com') {
+        const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
+        filteredAdminProfiles = filteredAdminProfiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || ''));
+      }
+      
+      const employeeIds = filteredAdminProfiles.map(p => p.id) || [];
         
       const { count: presentToday } = await supabase
         .from('attendance')
@@ -376,6 +419,7 @@ const Dashboard = () => {
 
       setStats(prev => ({
         ...prev,
+        totalEmployees: filteredAdminProfiles.length,
         presentToday: presentToday || 0,
         onLeave: onLeave || 0
       }));
@@ -656,19 +700,34 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <Button 
-                  className={`w-full py-6 h-auto text-sm font-bold shadow-lg transition-all ${
-                    (draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan && submission.firstName && submission.lastName && submission.email && submission.mobile && submission.dob && submission.address && submission.employeeId && submission.jobTitle && submission.joiningDate && submission.manager && submission.bankName) 
-                    ? 'bg-brand-teal hover:bg-emerald-600 shadow-brand-teal/20' 
-                    : 'bg-gray-300 cursor-not-allowed grayscale'
-                  }`} 
-                  onClick={handleDocSubmit}
-                  disabled={!(draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan && submission.firstName && submission.lastName && submission.email && submission.mobile && submission.dob && submission.address && submission.employeeId && submission.jobTitle && submission.joiningDate && submission.manager && submission.bankName)}
-                >
-                  {(draftDocs.offerLetter && draftDocs.aadhar && draftDocs.degree && draftDocs.photo && submission.bankAcc && submission.ifsc && submission.pan && submission.firstName && submission.lastName && submission.email && submission.mobile && submission.dob && submission.address && submission.employeeId && submission.jobTitle && submission.joiningDate && submission.manager && submission.bankName) 
-                    ? 'Submit All Details & Documents' 
-                    : 'Please Fill All Details & Upload All Documents to Enable Submission'}
-                </Button>
+                {(() => {
+                  const isOfferLetterReady = draftDocs.offerLetter || submission.offerLetter;
+                  const isAadharReady = draftDocs.aadhar || submission.aadhar;
+                  const isDegreeReady = draftDocs.degree || submission.degree;
+                  const isPhotoReady = draftDocs.photo || submission.photo;
+
+                  const canSubmit = isOfferLetterReady && isAadharReady && isDegreeReady && isPhotoReady && 
+                    submission.bankAcc && submission.ifsc && submission.pan && 
+                    submission.firstName && submission.lastName && submission.email && 
+                    submission.mobile && submission.dob && submission.address && 
+                    submission.employeeId && submission.jobTitle && submission.bankName;
+
+                  return (
+                    <Button 
+                      className={`w-full py-6 h-auto text-sm font-bold shadow-lg transition-all ${
+                        canSubmit 
+                        ? 'bg-brand-teal hover:bg-emerald-600 shadow-brand-teal/20' 
+                        : 'bg-gray-300 cursor-not-allowed grayscale'
+                      }`} 
+                      onClick={handleDocSubmit}
+                      disabled={!canSubmit}
+                    >
+                      {canSubmit 
+                        ? 'Submit All Details & Documents' 
+                        : 'Please fill all required fields & upload all 4 documents to submit'}
+                    </Button>
+                  );
+                })()}
               </div>
             </CardContent>
           </Card>
@@ -961,7 +1020,7 @@ const Dashboard = () => {
                           className="text-brand-teal border-brand-teal hover:bg-brand-teal hover:text-white"
                           onClick={() => {
                             const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
-                            const sub = allSubmissions[p.employee_id || p.id] || null;
+                            const sub = (p.employee_id ? allSubmissions[p.employee_id] : null) || allSubmissions[p.id] || null;
                             setSelectedProfile({ ...p, submission: sub });
                           }}
                         >

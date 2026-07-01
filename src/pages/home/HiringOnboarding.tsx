@@ -6,8 +6,10 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Search, Filter, Mail, Phone, MapPin, Briefcase, Calendar, Clock, Download, Upload, CheckCircle, XCircle, UserPlus, Users, FileText, ChevronRight, AlertCircle, Trash2, CheckSquare, Send, CheckCircle2 as Check, Brain, Video, Play } from 'lucide-react';
 import { sendEmail } from '../../lib/resend';
+import { useAuth } from '../../context/AuthContext';
 
 const HiringOnboarding = () => {
+  const { profile } = useAuth();
   const [atsRun, setAtsRun] = useState(false);
   const [activeTab, setActiveTab] = useState<'Pool' | 'R1' | 'R2' | 'R3' | 'Onboarding'>('Pool');
   const [toast, setToast] = useState<{msg: string, type: 'info' | 'success'} | null>(null);
@@ -17,33 +19,118 @@ const HiringOnboarding = () => {
   const [allEmployees, setAllEmployees] = useState<any[]>([]);
   const [customEmpId, setCustomEmpId] = useState('');
   const [customPassword, setCustomPassword] = useState('Welcome@2024');
+  const [customSalary, setCustomSalary] = useState('');
+  const [offerLetterTemplate, setOfferLetterTemplate] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [applicants, setApplicants] = useState<any[]>([]);
+  const [applicants, setApplicants] = useState<any[]>(() => {
+    const saved = localStorage.getItem('hr_applicants');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [atsLoading, setAtsLoading] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('hr_applicants', JSON.stringify(applicants));
+  }, [applicants]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('hr_applicants');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const containsMock = parsed.some((p: any) => p.name === "John Doe" || p.name === "Jane Smith" || p.name === "Bob Johnson");
+      if (containsMock) {
+        const cleaned = parsed.filter((p: any) => p.name !== "John Doe" && p.name !== "Jane Smith" && p.name !== "Bob Johnson");
+        setApplicants(cleaned);
+        localStorage.setItem('hr_applicants', JSON.stringify(cleaned));
+      }
+    }
+  }, []);
 
   const showToast = (msg: string, type: 'info' | 'success' = 'info') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
   };
 
-  const runATS = () => {
-    setAtsRun(true);
+  const runATS = async () => {
+    const appliedCount = applicants.filter(a => a.status === 'Applied').length;
+    if (appliedCount === 0) {
+      showToast("No new applicants in 'Applied' status to screen.", "info");
+      return;
+    }
+
+    setAtsLoading(true);
     showToast("AI scanning resumes for job matching score...", "info");
     
-    // Scan existing applicants who are currently in the 'Applied' status
-    const updatedApplicants = applicants.map(a => {
-      if (a.status === 'Applied') {
-        // Generate a realistic match score between 65-95%
-        const matchScore = Math.floor(Math.random() * (95 - 65 + 1)) + 65;
-        return { ...a, match: matchScore };
-      }
-      return a;
-    });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const updatedApplicants = [...applicants];
 
-    setTimeout(() => {
-      setApplicants(updatedApplicants);
-      showToast("ATS Scan complete. Percentage matches generated for all applicants.", "success");
-    }, 2000);
+    for (let i = 0; i < updatedApplicants.length; i++) {
+      const a = updatedApplicants[i];
+      if (a.status === 'Applied') {
+        let aiResult = null;
+        if (apiKey) {
+          try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [{
+                    text: `Analyze this candidate's resume/skills summary for the role of "${a.role}". Resume: "${a.resume || ''}". Return ONLY a JSON object in this format: {"score": <number between 0 and 100>, "reason": "<brief 1-sentence reason>"}. Do not include markdown codeblock formatting or extra text, just the raw JSON.`
+                  }]
+                }]
+              })
+             });
+             const data = await response.json();
+             const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+             const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+             const result = JSON.parse(cleanText);
+             aiResult = { score: result.score || 50, reason: result.reason || '' };
+          } catch (err) {
+            console.error("Gemini API error for candidate:", a.name, err);
+          }
+        }
+
+        // Local fallback if no API key or call failed
+        if (!aiResult) {
+          const lowerResume = (a.resume || '').toLowerCase();
+          const lowerRole = (a.role || '').toLowerCase();
+          const keywords: Record<string, string[]> = {
+            engineering: ['react', 'node', 'javascript', 'typescript', 'postgres', 'sql', 'aws', 'docker', 'git', 'css', 'html', 'python'],
+            design: ['figma', 'sketch', 'adobe', 'ui', 'ux', 'wireframe', 'prototype', 'design system', 'user research', 'creative'],
+            product: ['roadmap', 'jira', 'agile', 'scrum', 'prd', 'market', 'strategy', 'communication', 'metrics', 'analytics'],
+            analytics: ['python', 'sql', 'r', 'excel', 'tableau', 'power bi', 'pandas', 'statistics', 'metrics', 'dashboard']
+          };
+
+          let matchedKeywords = keywords.engineering;
+          if (lowerRole.includes('design')) matchedKeywords = keywords.design;
+          else if (lowerRole.includes('product')) matchedKeywords = keywords.product;
+          else if (lowerRole.includes('analytics')) matchedKeywords = keywords.analytics;
+
+          let matches = 0;
+          matchedKeywords.forEach(kw => {
+            if (lowerResume.includes(kw)) matches++;
+          });
+
+          const baseScore = 50;
+          const keywordScore = Math.min(45, (matches / (matchedKeywords.length || 1)) * 45);
+          const finalScore = Math.round(baseScore + keywordScore + (Math.random() * 5));
+          aiResult = { score: finalScore, reason: `Matched ${matches} key skills locally.` };
+        }
+
+        updatedApplicants[i] = { 
+          ...a, 
+          match: aiResult.score,
+          ai_reason: aiResult.reason 
+        };
+      }
+    }
+
+    setApplicants(updatedApplicants);
+    setAtsRun(true);
+    setAtsLoading(false);
+    showToast(apiKey ? "AI Screening complete via Gemini API!" : "Screening complete! (Local AI keyword matching applied)", "success");
   };
 
   const moveToR2 = (id: number) => {
@@ -77,8 +164,8 @@ const HiringOnboarding = () => {
 
       // 2. Get mock credentials from localStorage
       const mockCreds = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
-      const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute'];
-      const mockMapped = mockCreds
+      const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute', 'Angela Martin', 'John Doe'];
+      let mockMapped = mockCreds
         .filter((m: any) => m.full_name && !mockOfficeNames.includes(m.full_name))
         .map((m: any) => ({
           id: m.employeeId,
@@ -90,13 +177,19 @@ const HiringOnboarding = () => {
         }));
 
       // 3. Current Selected applicants who might not be persisted yet
-      const currentHired = applicants.filter(a => a.status === 'Selected').map(a => ({
+      let currentHired = applicants.filter(a => a.status === 'Selected').map(a => ({
         id: a.id,
         name: a.name,
         empId: a.empId,
         email: a.email,
         status: 'Selected'
       }));
+
+      // Exclude fake profiles globally
+      const fakeNames = ['mukesh', 'sanjay', 'kanmani', 'angela martin', 'john doe'];
+      unified = unified.filter((p: any) => !fakeNames.includes(p.name?.toLowerCase() || ''));
+      mockMapped = mockMapped.filter((m: any) => !fakeNames.includes(m.name?.toLowerCase() || ''));
+      currentHired = currentHired.filter((a: any) => !fakeNames.includes(a.name?.toLowerCase() || ''));
 
       // Merge and deduplicate by empId
       const empMap = new Map();
@@ -111,10 +204,6 @@ const HiringOnboarding = () => {
   };
 
   useEffect(() => {
-    localStorage.removeItem('hr_employee_credentials');
-    localStorage.removeItem('hr_employee_submissions');
-    localStorage.removeItem('hr_applicants');
-    localStorage.removeItem('hr_notifications');
     if (activeTab === 'Onboarding') {
       fetchAllEmployees();
     }
@@ -140,6 +229,40 @@ const HiringOnboarding = () => {
       if (candidate) {
         setCustomEmpId(candidate.empId || `VYR-2024-00${candidate.id}`);
         setCustomPassword('Welcome@2024');
+        setCustomSalary('');
+      }
+    } else if (decision === 'Rejected') {
+      setShowIdCreator(false);
+      setSelectedCandidate(null);
+      const candidate = applicants.find(a => a.id === id);
+      if (candidate) {
+        setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Rejected' } : a));
+        if (candidate.email) {
+          sendEmail({
+            to: candidate.email,
+            subject: `Update regarding your application | VyaraHR`,
+            html: `
+              <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                <h2 style="color: #0f2d52;">Thank you for your interest, ${candidate.name}</h2>
+                <p>Thank you for taking the time to interview with us for the position of <strong>${candidate.role}</strong>.</p>
+                <p>We appreciate the opportunity to learn more about your skills and experience. While we were impressed with your background, we have decided to proceed with other candidates whose qualifications closely align with our current needs.</p>
+                <p>We wish you the very best of luck in your job search and your future professional endeavors.</p>
+                <p>Sincerely,</p>
+                <p><strong>VyaraHR Talent Acquisition Team</strong></p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p style="font-size: 12px; color: #666;">This is an automated message from the VyaraHR Platform.</p>
+              </div>
+            `
+          }).then(res => {
+            if (res.success) {
+              showToast(`Better luck next time message sent to ${candidate.email} ✓`, 'success');
+            } else {
+              showToast(`Candidate marked as Rejected, email failed: ${res.error}`, 'info');
+            }
+          });
+        } else {
+          showToast(`Candidate marked as Rejected (No email provided)`, 'info');
+        }
       }
     } else {
       setShowIdCreator(false);
@@ -151,6 +274,7 @@ const HiringOnboarding = () => {
     const candidate = applicants.find(a => a.id === id);
     const empId = customEmpId || `VYR-2024-00${id}`;
     const password = customPassword || "Welcome@2024";
+    const salaryVal = customSalary || "0";
 
     // Reset selection state
     setShowIdCreator(false);
@@ -167,28 +291,42 @@ const HiringOnboarding = () => {
     });
     localStorage.setItem('hr_employee_credentials', JSON.stringify(credentials));
 
-    // Save custom empId and password directly on applicant record
-    setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected', empId: empId, password: password } : a));
+    // Save custom empId, password, and salary directly on applicant record
+    setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected', empId: empId, password: password, salary: salaryVal } : a));
     
+    // Generate email offer letter using template
+    const defaultTemplate = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #0f2d52;">Congratulations, {candidate_name}!</h2>
+        <p>We are thrilled to offer you the position of <strong>{role}</strong> at our organization.</p>
+        <p>Your annual salary will be <strong>₹{salary}</strong>.</p>
+        <div style="background: #f0f7f7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0;"><strong>Employee ID:</strong> {employee_id}</p>
+          <p style="margin: 5px 0 0 0;"><strong>Temporary Password:</strong> {password}</p>
+        </div>
+        <p>Please log in to your employee portal to complete your onboarding process.</p>
+        <p>Welcome to the team!</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #666;">This is an automated message from the VyaraHR Platform.</p>
+      </div>
+    `;
+
+    let emailHtml = offerLetterTemplate ? offerLetterTemplate : defaultTemplate;
+    
+    // Replace placeholders
+    emailHtml = emailHtml
+      .replace(/{candidate_name}/g, candidate?.name || '')
+      .replace(/{role}/g, candidate?.role || '')
+      .replace(/{salary}/g, salaryVal)
+      .replace(/{employee_id}/g, empId)
+      .replace(/{password}/g, password);
+
     // Send actual email via Resend
     if (candidate?.email) {
       sendEmail({
         to: candidate.email,
         subject: `Offer Letter - ${candidate.name} | VyaraHR`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #0f2d52;">Congratulations, ${candidate.name}!</h2>
-            <p>We are thrilled to offer you the position of <strong>${candidate.role}</strong> at our organization.</p>
-            <div style="background: #f0f7f7; padding: 15px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 0;"><strong>Employee ID:</strong> ${empId}</p>
-              <p style="margin: 5px 0 0 0;"><strong>Temporary Password:</strong> ${password}</p>
-            </div>
-            <p>Please log in to your employee portal to complete your onboarding process.</p>
-            <p>Welcome to the team!</p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #666;">This is an automated message from the VyaraHR Platform.</p>
-          </div>
-        `
+        html: emailHtml
       }).then(res => {
         if (res.success) {
           showToast(`Offer Letter sent to ${candidate.email} via Resend ✓`, 'success');
@@ -210,6 +348,7 @@ const HiringOnboarding = () => {
     try {
       const empId = customEmpId || `VYR-2024-00${selectedCandidate.id}`;
       const password = customPassword || "Welcome@2024";
+      const salary = selectedCandidate.salary || "0";
       
       const session = (await supabase.auth.getSession()).data.session;
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`, {
@@ -223,7 +362,7 @@ const HiringOnboarding = () => {
           password: password,
           full_name: selectedCandidate.name,
           designation: selectedCandidate.role,
-          gross_salary: "0",
+          gross_salary: salary,
           employee_id: empId
         })
       });
@@ -272,6 +411,7 @@ const HiringOnboarding = () => {
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
         const [name, empId, role, phone, resume] = lines[i].split(',').map(s => s.trim());
+        if (!name) continue;
         
         newApplicants.push({
           id: Date.now() + i,
@@ -284,6 +424,11 @@ const HiringOnboarding = () => {
           match: 0,
           status: 'Applied'
         });
+      }
+
+      if (newApplicants.length === 0) {
+        showToast("❌ Uploaded CSV has no valid candidate data.", "info");
+        return;
       }
 
       setApplicants(prev => [...prev, ...newApplicants]);
@@ -467,8 +612,13 @@ const HiringOnboarding = () => {
               <CardTitle>Section B: ATS AI Screening</CardTitle>
               <p className="text-sm text-gray-500 mt-1">Automatic resume scoring based on job criteria.</p>
             </div>
-            <Button onClick={runATS} className="gap-2 bg-gradient-to-r from-brand-teal to-emerald-500 border-none">
-              <Brain size={18}/> {atsRun ? 'Rescan Pool' : 'Run AI Screening'}
+            <Button 
+              onClick={runATS} 
+              disabled={atsLoading}
+              className="gap-2 bg-gradient-to-r from-brand-teal to-emerald-500 border-none"
+            >
+              <Brain size={18} className={atsLoading ? "animate-spin" : ""}/> 
+              {atsLoading ? 'Scanning...' : (atsRun ? 'Rescan Pool' : 'Run AI Screening')}
             </Button>
           </CardHeader>
           <CardContent>
@@ -485,7 +635,10 @@ const HiringOnboarding = () => {
                 <tbody>
                   {applicants.filter(a => a.match > 0 && ['Applied', 'R1'].includes(a.status)).map(a => (
                     <tr key={a.id} className="border-b transition-colors hover:bg-gray-50/50">
-                      <td className="px-6 py-4 font-medium text-brand-navy">{a.name}</td>
+                      <td className="px-6 py-4 font-medium text-brand-navy">
+                        {a.name}
+                        {a.ai_reason && <p className="text-[10px] text-gray-500 font-normal mt-0.5">{a.ai_reason}</p>}
+                      </td>
                       <td className="px-6 py-4 text-gray-600">{a.role}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -617,6 +770,35 @@ const HiringOnboarding = () => {
             <p className="text-sm text-gray-500 mt-1">Conducted interviews and finalize decisions.</p>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Offer Letter Template Upload (Admin Only) */}
+            <div className="mb-6 flex justify-end">
+              <input 
+                type="file" 
+                accept=".txt" 
+                id="offer-letter-template-upload" 
+                className="hidden" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (evt) => {
+                    const text = evt.target?.result as string;
+                    setOfferLetterTemplate(text);
+                    showToast("Offer letter template loaded successfully!", "success");
+                  };
+                  reader.readAsText(file);
+                  e.target.value = '';
+                }}
+              />
+              <Button 
+                onClick={() => document.getElementById('offer-letter-template-upload')?.click()}
+                size="sm"
+                className="gap-2 bg-brand-navy hover:bg-black"
+              >
+                <Upload size={16}/> {offerLetterTemplate ? '✓ Template Loaded' : 'Upload Template (.txt)'}
+              </Button>
+            </div>
+
             <div className="space-y-4">
               {applicants.filter(a => a.status === 'R2' || a.status === 'Selected').map(a => (
                 <div key={a.id} className="border rounded-2xl p-6 flex flex-col gap-6 bg-white shadow-sm border-gray-100">
@@ -652,8 +834,8 @@ const HiringOnboarding = () => {
 
                    {showIdCreator && selectedCandidate?.id === a.id && (
                      <div className="bg-brand-teal/5 p-6 rounded-xl border border-brand-teal/20 space-y-4 animate-in fade-in slide-in-from-top-2">
-                        <h4 className="text-sm font-bold text-brand-navy border-b border-brand-teal/10 pb-2">Create Employee Credentials</h4>
-                        <div className="grid grid-cols-2 gap-4">
+                        <h4 className="text-sm font-bold text-brand-navy border-b border-brand-teal/10 pb-2">Create Employee Credentials & Salary</h4>
+                        <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-emerald-700 uppercase">Employee ID</label>
                             <input 
@@ -676,8 +858,19 @@ const HiringOnboarding = () => {
                               title="Initial Password"
                             />
                           </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-emerald-700 uppercase">Salary Offered (Gross/Yr)</label>
+                            <input 
+                              type="number" 
+                              className="w-full border-brand-teal/30 bg-white border p-2 rounded-lg text-sm font-bold text-brand-navy" 
+                              value={customSalary} 
+                              onChange={(e) => setCustomSalary(e.target.value)} 
+                              placeholder="e.g. 600000"
+                              title="Salary"
+                            />
+                          </div>
                         </div>
-                        <p className="text-[10px] text-gray-500 italic">* This ID and Password will be attached to the offer letter PDF.</p>
+                        <p className="text-[10px] text-gray-500 italic">* The credentials and salary details will be merged into the offer letter.</p>
                      </div>
                    )}
                 </div>
@@ -815,7 +1008,7 @@ const HiringOnboarding = () => {
                         }
 
                         return filtered.map(a => {
-                          const sub = submissions[a.empId] || {};
+                          const sub = (a.empId ? submissions[a.empId] : null) || submissions[a.id] || {};
                           const check = (val: any, label: string) => val ? (
                             <div className="flex flex-col items-center gap-1 group/item">
                               <CheckCircle size={16} className="text-emerald-500 mx-auto" />

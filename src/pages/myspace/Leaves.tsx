@@ -163,9 +163,48 @@ const Leaves = () => {
     setLoading(false);
   };
 
+  const isAllLeavesFullyUsed = !balanceLoading && Object.entries(LEAVE_ALLOCATIONS)
+    .filter(([type]) => type !== 'unpaid')
+    .every(([type, cfg]) => (leaveBalance[type] || 0) >= cfg.total);
+
+  const getRequestedDays = () => {
+    if (!formData.startDate || !formData.endDate) return 0;
+    const start = new Date(formData.startDate);
+    const end = new Date(formData.endDate);
+    return Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  };
+
+  const requestedDays = getRequestedDays();
+  const selectedTypeRemaining = formData.type && formData.type !== 'unpaid'
+    ? Math.max(0, (LEAVE_ALLOCATIONS[formData.type]?.total || 0) - (leaveBalance[formData.type] || 0))
+    : Infinity;
+  const isBalanceInsufficient = !!(formData.type && formData.type !== 'unpaid' && requestedDays > selectedTypeRemaining);
+
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
+
+    if (isAllLeavesFullyUsed) {
+      setToast('❌ You have fully reached all your leave allocations.');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+
+    if (formData.type !== 'unpaid') {
+      const remaining = (LEAVE_ALLOCATIONS[formData.type]?.total || 0) - (leaveBalance[formData.type] || 0);
+      if (remaining <= 0) {
+        setToast(`❌ You have no remaining balance for ${LEAVE_ALLOCATIONS[formData.type]?.label}.`);
+        setTimeout(() => setToast(''), 3000);
+        return;
+      }
+      const days = getRequestedDays();
+      if (days > remaining) {
+        setToast(`❌ Requested days (${days}) exceed remaining balance (${remaining} days) for ${LEAVE_ALLOCATIONS[formData.type]?.label}.`);
+        setTimeout(() => setToast(''), 3500);
+        return;
+      }
+    }
+
     setLoading(true);
     
     try {
@@ -187,6 +226,7 @@ const Leaves = () => {
         setToast('✓ Leave request submitted successfully!');
         setFormData({ type: '', startDate: '', endDate: '', reason: '' });
         await fetchRequests();
+        await fetchLeaveBalance();
       }
     } catch (err) {
       setToast('❌ Unexpected error.');
@@ -434,28 +474,46 @@ const Leaves = () => {
               <CardTitle>My Leave Requests</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {loading ? (
-                  <p className="text-center py-4 text-gray-400 italic text-sm">Loading...</p>
-                ) : requests.length > 0 ? requests.map((req, i) => {
-                  const start = new Date(req.start_date);
-                  const end = new Date(req.end_date);
-                  const duration = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-                  return (
-                    <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-brand-teal/30 transition-colors">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-sm text-brand-navy capitalize">{req.type} Leave</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{req.start_date} → {req.end_date}</p>
-                          <p className="text-xs font-medium text-brand-teal mt-1">{duration} day{duration !== 1 ? 's' : ''}</p>
-                        </div>
-                        <Badge variant={req.status === 'approved' ? 'green' : (req.status === 'rejected' ? 'red' : 'neutral')}>
-                          {req.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  );
-                }) : <p className="text-center py-4 text-gray-500 italic text-sm">No requests found.</p>}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left border-collapse">
+                  <thead className="text-xs text-gray-400 uppercase bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">Leave Type</th>
+                      <th className="px-4 py-3 font-bold">Start Date</th>
+                      <th className="px-4 py-3 font-bold">End Date</th>
+                      <th className="px-4 py-3 font-bold text-center">Duration (Days)</th>
+                      <th className="px-4 py-3 font-bold">Reason</th>
+                      <th className="px-4 py-3 font-bold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {loading ? (
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 italic">Loading requests...</td></tr>
+                    ) : requests.length === 0 ? (
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 italic">No requests found.</td></tr>
+                    ) : (
+                      requests.map((req, i) => {
+                        const start = new Date(req.start_date);
+                        const end = new Date(req.end_date);
+                        const duration = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+                        return (
+                          <tr key={i} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 capitalize font-semibold text-brand-navy">{req.type} Leave</td>
+                            <td className="px-4 py-3 text-gray-600">{req.start_date}</td>
+                            <td className="px-4 py-3 text-gray-600">{req.end_date}</td>
+                            <td className="px-4 py-3 text-center font-bold text-brand-navy">{duration}</td>
+                            <td className="px-4 py-3 text-gray-500 max-w-xs truncate" title={req.reason}>{req.reason || '—'}</td>
+                            <td className="px-4 py-3">
+                              <Badge variant={req.status === 'approved' ? 'green' : (req.status === 'rejected' ? 'red' : 'neutral')}>
+                                {req.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
@@ -467,61 +525,89 @@ const Leaves = () => {
               <CardTitle>Apply for Leave</CardTitle>
             </CardHeader>
             <CardContent>
-              <form className="space-y-5" onSubmit={handleApply}>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type</label>
-                  <select 
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal text-sm" 
-                    required
-                    value={formData.type}
-                    onChange={(e) => setFormData({...formData, type: e.target.value})}
-                  >
-                    <option value="">Select leave type</option>
-                    <option value="casual">Casual Leave</option>
-                    <option value="sick">Sick Leave</option>
-                    <option value="earned">Earned Leave</option>
-                    <option value="unpaid">Unpaid Leave</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input 
-                      type="date" 
-                      className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" 
-                      required 
-                      value={formData.startDate}
-                      onChange={(e) => setFormData({...formData, startDate: e.target.value})}
-                    />
+              {isAllLeavesFullyUsed ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg font-medium">
+                    ⚠️ You have fully reached all your paid leave allocations. You are not able to request more leave.
                   </div>
+                  <Button className="w-full gap-2" disabled={true}>
+                    <Send size={16}/> Apply Leave (Disabled)
+                  </Button>
+                </div>
+              ) : (
+                <form className="space-y-5" onSubmit={handleApply}>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input 
-                      type="date" 
-                      className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" 
-                      required 
-                      value={formData.endDate}
-                      onChange={(e) => setFormData({...formData, endDate: e.target.value})}
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type</label>
+                    <select 
+                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal text-sm" 
+                      required
+                      value={formData.type}
+                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                    >
+                      <option value="">Select leave type</option>
+                      <option value="casual">Casual Leave</option>
+                      <option value="sick">Sick Leave</option>
+                      <option value="earned">Earned Leave</option>
+                      <option value="unpaid">Unpaid Leave</option>
+                    </select>
+                    {formData.type && formData.type !== 'unpaid' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Remaining balance: {selectedTypeRemaining} day{selectedTypeRemaining !== 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
-                  <textarea 
-                    rows={2} 
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal text-sm resize-none" 
-                    placeholder="Brief reason for leave..."
-                    value={formData.reason}
-                    onChange={(e) => setFormData({...formData, reason: e.target.value})}
-                  ></textarea>
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                      <input 
+                        type="date" 
+                        className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" 
+                        required 
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                      <input 
+                        type="date" 
+                        className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" 
+                        required 
+                        value={formData.endDate}
+                        onChange={(e) => setFormData({...formData, endDate: e.target.value})}
+                      />
+                    </div>
+                  </div>
 
-                <Button type="submit" className="w-full gap-2" disabled={loading}>
-                  <Send size={16}/> Apply Leave
-                </Button>
-              </form>
+                  {formData.startDate && formData.endDate && (
+                    <p className="text-xs text-gray-600 font-medium">
+                      Requested Duration: {requestedDays} day{requestedDays !== 1 ? 's' : ''}
+                    </p>
+                  )}
+
+                  {isBalanceInsufficient && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-md">
+                      ⚠️ Requested duration exceeds your remaining balance ({selectedTypeRemaining} days).
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                    <textarea 
+                      rows={2} 
+                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal text-sm resize-none" 
+                      placeholder="Brief reason for leave..."
+                      value={formData.reason}
+                      onChange={(e) => setFormData({...formData, reason: e.target.value})}
+                    ></textarea>
+                  </div>
+
+                  <Button type="submit" className="w-full gap-2" disabled={loading || isBalanceInsufficient}>
+                    <Send size={16}/> Apply Leave
+                  </Button>
+                </form>
+              )}
             </CardContent>
           </Card>
           

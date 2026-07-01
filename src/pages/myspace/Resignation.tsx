@@ -11,6 +11,7 @@ const Resignation = () => {
   const [resigned, setResigned] = useState(false);
   const [toast, setToast] = useState('');
   const [requestId, setRequestId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>('');
   const [formData, setFormData] = useState({ lwd: '', reason: '' });
   const [checklist, setChecklist] = useState<any>({
     resignation_letter: false,
@@ -41,7 +42,8 @@ const Resignation = () => {
 
       setRequestId(data.id);
       setResigned(true);
-      setToast('Resignation request and documents sent for Admin approval! ✓');
+      setStatus('Pending');
+      setToast('Resignation request sent for Admin approval! ✓');
       setTimeout(() => setToast(''), 4000);
     } catch (err: any) {
       console.error("Error submitting resignation:", err.message);
@@ -75,6 +77,7 @@ const Resignation = () => {
         if (data) {
           setResigned(true);
           setRequestId(data.id);
+          setStatus(data.status || 'Pending');
           setFormData({ lwd: data.lwd, reason: data.reason });
           if (data.checklist) {
             setChecklist(data.checklist);
@@ -176,14 +179,53 @@ const Resignation = () => {
             </form>
           </CardContent>
         </Card>
-
+ 
         {/* Status Tracker */}
         <div className="space-y-6">
+          {resigned && (
+            <Card className={`border-none shadow-lg overflow-hidden ${
+              status === 'Completed' 
+                ? 'bg-emerald-50 border-l-4 border-l-status-green' 
+                : status === 'Approved' 
+                  ? 'bg-blue-50 border-l-4 border-l-brand-teal' 
+                  : 'bg-amber-50 border-l-4 border-l-status-amber'
+            }`}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-brand-navy">
+                    Resignation Status: <span className={
+                      status === 'Completed' 
+                        ? 'text-status-green' 
+                        : status === 'Approved' 
+                          ? 'text-brand-teal' 
+                          : 'text-status-amber'
+                    }>{status || 'Submitted'}</span>
+                  </h4>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {status === 'Completed' 
+                      ? 'Exit approved. Clearance complete and relieving details archived.' 
+                      : status === 'Approved' 
+                        ? 'Resignation approved. Please submit the company items and documents below for final clearance.' 
+                        : 'Notice submitted. Waiting for Admin to approve resignation notice to unlock exit checklist.'}
+                  </p>
+                </div>
+                <Badge variant={status === 'Completed' ? 'green' : status === 'Approved' ? 'blue' : 'amber'} className="uppercase font-bold tracking-wider text-[10px]">
+                  {status || 'Submitted'}
+                </Badge>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border-none shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><CheckCircle size={20} className="text-status-green" /> Exit Checklist</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {status === 'Pending' && (
+                <div className="p-4 bg-gray-50 rounded-xl text-center text-xs text-gray-500 italic">
+                  Exit checklist will unlock once resignation notice is approved by admin.
+                </div>
+              )}
               {[
                 { label: 'Resignation Letter', key: 'resignation_letter', type: 'file' },
                 { label: 'Last Working Day Confirmation', key: 'lwd_confirmed', type: 'file' },
@@ -191,62 +233,51 @@ const Resignation = () => {
                 { label: 'Knowledge Transfer Document', key: 'kt_completed', type: 'file' },
                 { label: 'No Dues Certificate (Finance)', key: 'no_dues_verified', type: 'file' },
                 { label: 'No Loans Pending Statement', key: 'no_loans_pending', type: 'file' },
-              ].map((item, i) => (
-                <div key={i} className={`p-4 rounded-xl border transition-all ${checklist[item.key] ? 'bg-emerald-50/50 border-emerald-100' : 'bg-gray-50/50 border-gray-100'}`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      {checklist[item.key] ? <CheckCircle className="text-status-green" size={20} /> : <div className="w-5 h-5 border-2 border-gray-200 rounded-full" />}
-                      <span className={`text-sm font-semibold ${checklist[item.key] ? 'text-emerald-700' : 'text-gray-600'}`}>{item.label}</span>
+              ].map((item, i) => {
+                const isItemCompleted = checklist[item.key];
+                const isInteractionDisabled = status !== 'Approved' || isItemCompleted;
+                return (
+                  <div key={i} className={`p-4 rounded-xl border transition-all ${isItemCompleted ? 'bg-emerald-50/50 border-emerald-100' : 'bg-gray-50/50 border-gray-100'} ${status === 'Pending' ? 'opacity-50' : ''}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        {isItemCompleted ? <CheckCircle className="text-status-green" size={20} /> : <div className="w-5 h-5 border-2 border-gray-200 rounded-full" />}
+                        <span className={`text-sm font-semibold ${isItemCompleted ? 'text-emerald-700' : 'text-gray-600'}`}>{item.label}</span>
+                      </div>
+                      <Badge variant={isItemCompleted ? 'green' : 'neutral'} className="text-[10px] uppercase font-bold tracking-widest">{isItemCompleted ? 'Submitted' : 'Pending'}</Badge>
                     </div>
-                    <Badge variant={checklist[item.key] ? 'green' : 'neutral'} className="text-[10px] uppercase font-bold tracking-widest">{checklist[item.key] ? 'Submitted' : 'Pending'}</Badge>
-                  </div>
-                  
-                  {item.type === 'file' ? (
-                    <div className="relative group">
-                      <input 
-                        type="file" 
-                        disabled={resigned && checklist[item.key]}
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) {
-                            const updated = { ...checklist, [item.key]: true };
+                    
+                    {item.type === 'file' ? (
+                      <div className="relative group">
+                        <input 
+                          type="file" 
+                          disabled={isInteractionDisabled}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              const updated = { ...checklist, [item.key]: true };
+                              updateChecklist(updated);
+                            }
+                          }}
+                          className="w-full text-[10px] text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-semibold file:bg-brand-teal/10 file:text-brand-teal hover:file:bg-brand-teal/20 cursor-pointer disabled:cursor-not-allowed" 
+                        />
+                      </div>
+                    ) : (
+                      <label className={`flex items-center gap-2 group ${isInteractionDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={isItemCompleted}
+                          disabled={isInteractionDisabled}
+                          onChange={(e) => {
+                            const updated = { ...checklist, [item.key]: e.target.checked };
                             updateChecklist(updated);
-                          }
-                        }}
-                        className="w-full text-[10px] text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-semibold file:bg-brand-teal/10 file:text-brand-teal hover:file:bg-brand-teal/20 cursor-pointer" 
-                      />
-                    </div>
-                  ) : (
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input 
-                        type="checkbox" 
-                        checked={checklist[item.key]}
-                        disabled={resigned && checklist[item.key]}
-                        onChange={(e) => {
-                          const updated = { ...checklist, [item.key]: e.target.checked };
-                          updateChecklist(updated);
-                        }}
-                        className="w-4 h-4 rounded border-gray-300 text-brand-teal focus:ring-brand-teal"
-                      />
-                      <span className="text-xs text-gray-500 group-hover:text-brand-navy transition-colors">I confirm all company assets have been returned</span>
-                    </label>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="bg-brand-navy border-none text-white overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-                <ShieldCheck size={120} />
-            </div>
-            <CardHeader>
-              <CardTitle className="text-sm font-bold uppercase tracking-widest text-brand-teal">Support & Help</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-xs text-gray-300 leading-relaxed">
-                Need help with the offboarding process or have questions about your settlement? Connect with the HR support team directly.
-              </p>
-              <Button variant="outline" className="w-full border-brand-teal text-brand-teal hover:bg-brand-teal hover:text-white border-2">Contact HR Support</Button>
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-brand-teal focus:ring-brand-teal disabled:opacity-50"
+                        />
+                        <span className="text-xs text-gray-500 group-hover:text-brand-navy transition-colors">I confirm all company assets have been returned</span>
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </div>

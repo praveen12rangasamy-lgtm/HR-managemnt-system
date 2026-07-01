@@ -44,8 +44,10 @@ function App() {
         'hr_equipment', 'all_equipment', 'software_licenses', 'hr_licenses', 'hr_assets_queries', 'asset_queries',
         'hr_loan_applications', 'hr_support_tickets', 'hr_leave_requests', 
         'hr_courses_assigned', 'hr_payroll_ledger', 'hr_employee_attendance', 'hr_attendance_logs',
-        'hr_employee_submissions', 'hr_offboarding_requests', 'hr_offboarding_checklists',
-        'hr_employee_credentials', 'hr_role_hierarchy'
+        'hr_offboarding_requests', 'hr_offboarding_checklists',
+        'hr_role_hierarchy'
+        // NOTE: hr_employee_submissions and hr_employee_credentials are intentionally excluded
+        // They contain real employee onboarding data that must be preserved
       ];
       keysToPurge.forEach(k => localStorage.removeItem(k));
       localStorage.setItem('fake_data_purged_v4', 'true');

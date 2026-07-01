@@ -18,7 +18,7 @@ const Offboarding = () => {
     const fetchRequests = async () => {
       try {
         if (!profile?.email) return;
-        const { data, error } = await supabase
+        let dbQuery = supabase
           .from('resignations')
           .select(`
             id,
@@ -33,8 +33,13 @@ const Offboarding = () => {
               designation,
               hired_by
             )
-          `)
-          .ilike('profiles.hired_by', profile.email.trim());
+          `);
+        
+        if (profile?.email !== 'praveen12rangasamy@gmail.com') {
+          dbQuery = dbQuery.ilike('profiles.hired_by', profile.email.trim());
+        }
+
+        const { data, error } = await dbQuery;
         
         if (error) throw error;
 
@@ -269,24 +274,37 @@ const Offboarding = () => {
                 >
                   No Due Certificate
                 </Button>
-                <Button 
-                  className="flex-1 py-7 rounded-2xl bg-[#e60000] hover:bg-red-700 text-white font-black text-base border-none shadow-xl shadow-red-500/20 active:scale-95 transition-all gap-2"
+                 <Button 
+                  className={`flex-1 py-7 rounded-2xl font-black text-base border-none shadow-xl active:scale-95 transition-all gap-2 ${
+                    selectedReq.status === 'Completed'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                      : selectedReq.status === 'Approved'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
+                        : 'bg-brand-teal hover:bg-[#14b8a6]/80 text-white shadow-brand-teal/20'
+                  }`}
+                  disabled={selectedReq.status === 'Completed'}
                   onClick={async () => {
                     if (!selectedRequestId) return;
                     try {
+                      const nextStatus = selectedReq.status === 'Pending' ? 'Approved' : 'Completed';
                       const { error } = await supabase
                         .from('resignations')
-                        .update({ status: 'Completed' })
+                        .update({ status: nextStatus })
                         .eq('id', selectedRequestId);
                       if (error) throw error;
-                      setRequests(requests.map(r => r.id === selectedRequestId ? { ...r, status: 'Completed' } : r));
+                      setRequests(requests.map(r => r.id === selectedRequestId ? { ...r, status: nextStatus } : r));
                       setSelectedRequestId(null);
                     } catch (err: any) {
-                      console.error("Error approving exit:", err.message);
+                      console.error("Error updating resignation status:", err.message);
                     }
                   }}
                 >
-                  <Trash2 size={20} className="mb-0.5" /> Approve Exit & Archive
+                  <Trash2 size={20} className="mb-0.5" />
+                  {selectedReq.status === 'Pending' 
+                    ? 'Approve Resignation Notice' 
+                    : selectedReq.status === 'Approved'
+                      ? 'Approve Final Exit & Offboard'
+                      : 'Exit Approved & Archived'}
                 </Button>
               </div>
             </CardContent>

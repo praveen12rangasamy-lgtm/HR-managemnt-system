@@ -143,44 +143,63 @@ serve(async (req: Request) => {
       })
     }
 
-    const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { role: 'employee' }
-    })
+    // 4. Check if user already exists in Supabase Auth first
+    let userId: string | null = null;
 
-    if (createErr || !newUser.user) {
-      return new Response(JSON.stringify({ error: createErr?.message || 'Failed to create Auth user' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    // Try listing users to find one with matching email
+    const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+    const existingAuthUser = listData?.users?.find((u: any) => u.email === email);
+
+    if (existingAuthUser) {
+      // User already exists in Auth — reuse their ID and update their password
+      userId = existingAuthUser.id;
+      // Update password in case it was different
+      await supabaseAdmin.auth.admin.updateUserById(userId, { password });
+    } else {
+      // Create a fresh Auth user
+      const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { role: 'employee' }
+      });
+
+      if (createErr || !newUser?.user) {
+        return new Response(JSON.stringify({ error: createErr?.message || 'Failed to create Auth user' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      userId = newUser.user.id;
     }
 
     // 5. Upsert the profile into the public.profiles table
     const { error: upsertErr } = await supabaseAdmin
       .from('profiles')
       .upsert({
-        id: newUser.user.id,
+        id: userId,
         employee_id,
         full_name,
         email,
         role: 'employee',
         designation: designation || 'Employee',
         department: 'Unassigned',
-        hired_by: user.email
-      })
+        hired_by: user.email,
+        password: password
+      }, { onConflict: 'id' });
 
     if (upsertErr) {
-      // Clean up the auth user if profile upsert fails to prevent orphaned accounts
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id)
+      // Only clean up auth user if we just created it (not if it pre-existed)
+      if (!existingAuthUser) {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+      }
       return new Response(JSON.stringify({ error: `Profile creation failed: ${upsertErr.message}` }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      });
     }
 
-    return new Response(JSON.stringify({ success: true, userId: newUser.user.id }), {
+    return new Response(JSON.stringify({ success: true, userId: userId }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
