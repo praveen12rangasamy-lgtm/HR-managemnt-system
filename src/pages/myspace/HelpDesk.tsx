@@ -37,7 +37,7 @@ const HelpDesk = () => {
     showToast('Processing ticket...');
     
     sendEmail({
-      to: 'vyarahr2026@gmail.com', // Admin or Support email
+      to: 'vyara2026@gmail.com', // Admin or Support email
       subject: `New Support Ticket: ${ticketType} [${priority}]`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">

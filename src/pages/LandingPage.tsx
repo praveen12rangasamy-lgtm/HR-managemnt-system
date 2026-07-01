@@ -227,7 +227,7 @@ const LandingPage: React.FC = () => {
       // 3. Send real email via Resend
       try {
         await sendEmail({
-          to: 'vyarahr2026@gmail.com', // Admin notification
+          to: 'vyara2026@gmail.com', // Admin notification
           subject: `New HR Registration: ${signupData.orgName}`,
           html: `
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
