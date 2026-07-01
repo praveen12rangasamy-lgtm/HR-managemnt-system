@@ -213,7 +213,7 @@ serve(async (req: Request) => {
           body: JSON.stringify({
             from: 'VyaraHR <onboarding@vyarahr.space>',
             to: [email],
-            subject: 'Welcome to VyaraHR!',
+            subject: 'Your VyaraHR Account is Ready',
             html: `
               <div style="font-family: sans-serif; padding: 20px; color: #333; line-height: 1.6;">
                 <p>Dear ${full_name},</p>
