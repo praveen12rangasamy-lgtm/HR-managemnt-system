@@ -35,7 +35,8 @@ serve(async (req: Request) => {
 
     // 2. Fetch the caller's profile to verify they are an admin
     let isAdmin = false;
-    if (user.email === 'praveen12rangasamy@gmail.com') {
+    const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com'];
+    if (user.email && primaryAdmins.includes(user.email.trim().toLowerCase())) {
       isAdmin = true;
     } else {
       const { data: callerProfile, error: profileErr } = await supabaseClient
@@ -95,13 +96,13 @@ serve(async (req: Request) => {
       const { error: profErr } = await supabaseAdmin
         .from('profiles')
         .delete()
-        .neq('email', 'praveen12rangasamy@gmail.com');
+        .not('email', 'in', `(${primaryAdmins.join(',')})`);
 
       // 3. List and delete users from Supabase Auth
       const { data: listData, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
       if (!listErr && listData && listData.users) {
         for (const u of listData.users) {
-          if (u.email !== 'praveen12rangasamy@gmail.com') {
+          if (u.email && !primaryAdmins.includes(u.email.trim().toLowerCase())) {
             await supabaseAdmin.auth.admin.deleteUser(u.id);
           }
         }

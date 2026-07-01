@@ -40,7 +40,8 @@ const LeaveAnalytics = () => {
 
       if (rawLeaves) {
         let leaves = rawLeaves || [];
-        if (profile?.email === 'praveen12rangasamy@gmail.com') {
+        const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com'];
+        if (profile?.email && primaryAdmins.includes(profile.email.trim().toLowerCase())) {
           const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
           leaves = leaves.filter(l => !fakeNames.includes(l.profiles?.full_name?.toLowerCase() || '') && l.profiles?.role !== 'admin');
         } else {
