@@ -799,11 +799,17 @@ const LandingPage: React.FC = () => {
                       title="Upload Offer Letter"
                       aria-label="Upload Offer Letter"
                       placeholder="Upload Offer Letter"
-                      accept=".pdf,.jpg,.jpeg,.png"
+                      accept=".pdf"
                       required
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
-                          setSignupData({...signupData, offerLetter: e.target.files[0]});
+                          const file = e.target.files[0];
+                          if (file.type.startsWith('image/')) {
+                            alert('Images are not allowed. Please upload a PDF document.');
+                            e.target.value = '';
+                            return;
+                          }
+                          setSignupData({...signupData, offerLetter: file});
                         }
                       }}
                     />

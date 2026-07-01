@@ -32,7 +32,7 @@ serve(async (req: Request) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: from || 'VyaraHR <onboarding@VyaraHR.space>',
+        from: from || 'VyaraHR <onboarding@vyarahr.space>',
         to: Array.isArray(to) ? to : [to],
         subject: subject,
         html: html,
