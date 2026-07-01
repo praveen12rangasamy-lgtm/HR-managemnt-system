@@ -23,8 +23,8 @@ export const sendEmail = async ({ to, subject, html, from, attachments }: SendEm
   try {
     const resendApiKey = import.meta.env.VITE_RESEND_API_KEY;
 
-    // Use local proxy to bypass CORS if API key is available directly
-    if (resendApiKey) {
+    // Use local proxy to bypass CORS if API key is available directly (only in development)
+    if (resendApiKey && import.meta.env.DEV) {
       const res = await fetch('/api/resend/emails', {
         method: 'POST',
         headers: {
