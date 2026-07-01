@@ -1,7 +1,8 @@
 export const PRIMARY_ADMIN_EMAILS = [
   'praveen12rangasamy@gmail.com',
   'pranavanandan18@gmail.com',
-  'pranavananthan18@gmail.com'
+  'pranavananthan18@gmail.com',
+  'jin@gmail.com'
 ];
 
 /**

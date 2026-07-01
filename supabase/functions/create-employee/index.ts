@@ -35,7 +35,7 @@ serve(async (req: Request) => {
 
     // 2. Fetch the caller's profile to verify they are an admin
     let isAdmin = false;
-    const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com'];
+    const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
     if (user.email && primaryAdmins.includes(user.email.trim().toLowerCase())) {
       isAdmin = true;
     } else {

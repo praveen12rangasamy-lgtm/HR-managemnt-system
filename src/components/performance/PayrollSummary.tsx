@@ -36,8 +36,7 @@ const PayrollSummary = () => {
 
       if (rawProfiles) {
         let profiles = rawProfiles || [];
-        const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com'];
-        if (profile?.email && primaryAdmins.includes(profile.email.trim().toLowerCase())) {
+        if (profile?.role === 'admin') {
           const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
           profiles = profiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || '') && p.role !== 'admin');
         } else {
