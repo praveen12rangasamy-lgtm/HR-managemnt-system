@@ -248,6 +248,7 @@ const Dashboard = () => {
         const { data: dbData, error } = await supabase
           .from('profiles')
           .select('*')
+          .eq('hired_by', profile?.email)
           .order('full_name', { ascending: true });
         
         if (error) throw error;
@@ -371,13 +372,16 @@ const Dashboard = () => {
         .from('leave_requests')
         .select(`
           *,
-          profiles:user_id (full_name, designation)
+          profiles:user_id (full_name, designation, hired_by)
         `)
         .eq('status', 'approved')
         .lte('start_date', today)
         .gte('end_date', today);
 
-      if (!error) setAbsences(data || []);
+      if (!error && data) {
+        const filtered = data.filter((lr: any) => lr.profiles?.hired_by === profile?.email);
+        setAbsences(filtered);
+      }
     } catch (err) {
       console.error('Error fetching absences:', err);
     }
@@ -387,15 +391,16 @@ const Dashboard = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      // Admin Dashboard should show stats for ALL employees (excluding admins)
+      // Admin Dashboard should show stats for employees belonging to this admin
       const { data: adminProfiles } = await supabase
         .from('profiles')
         .select('id, full_name')
         .neq('role', 'admin')
-        .neq('email', 'praveen12rangasamy@gmail.com');
+        .eq('hired_by', profile?.email);
       
       let filteredAdminProfiles = adminProfiles || [];
-      if (profile?.email === 'praveen12rangasamy@gmail.com') {
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com'];
+      if (profile?.email && primaryAdmins.includes(profile.email.trim().toLowerCase())) {
         const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
         filteredAdminProfiles = filteredAdminProfiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || ''));
       }
