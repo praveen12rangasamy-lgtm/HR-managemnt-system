@@ -59,7 +59,7 @@ serve(async (req: Request) => {
 
     // 3. Parse request payload
     const payload = await req.json()
-    const { action, email, password, full_name, designation, gross_salary, employee_id } = payload
+    const { action, email, password, full_name, designation, gross_salary, employee_id, role } = payload
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
@@ -96,7 +96,8 @@ serve(async (req: Request) => {
       const { error: profErr } = await supabaseAdmin
         .from('profiles')
         .delete()
-        .not('email', 'in', `(${primaryAdmins.join(',')})`);
+        .neq('role', 'admin')
+        .not('email', 'in', '("praveen12rangasamy@gmail.com","pranavanandan18@gmail.com","pranavananthan18@gmail.com","jin@gmail.com")');
 
       // 3. List and delete users from Supabase Auth
       const { data: listData, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
@@ -137,8 +138,8 @@ serve(async (req: Request) => {
       })
     }
 
-    if (!email || !password || !full_name || !employee_id) {
-      return new Response(JSON.stringify({ error: 'Missing required employee details' }), {
+    if (!email || !password || !full_name || (role !== 'admin' && !employee_id)) {
+      return new Response(JSON.stringify({ error: 'Missing required account details' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -179,12 +180,12 @@ serve(async (req: Request) => {
       .from('profiles')
       .upsert({
         id: userId,
-        employee_id,
+        employee_id: employee_id || `ADM-${Date.now()}`,
         full_name,
         email,
-        role: 'employee',
-        designation: designation || 'Employee',
-        department: 'Unassigned',
+        role: role || 'employee',
+        designation: designation || (role === 'admin' ? 'HR Administrator' : 'Employee'),
+        department: role === 'admin' ? 'HR' : 'Unassigned',
         hired_by: user.email,
         password: password
       }, { onConflict: 'id' });

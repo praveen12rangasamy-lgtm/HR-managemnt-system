@@ -24,7 +24,9 @@ const LandingPage: React.FC = () => {
     name: '',
     orgName: '',
     orgEmail: '',
+    countryCode: '+91',
     phone: '',
+    password: '',
     offerLetter: null as File | null
   });
 
@@ -196,6 +198,19 @@ const LandingPage: React.FC = () => {
     setError(null);
     
     try {
+      // 1. Phone number validation
+      if (signupData.countryCode === '+91' && !/^\d{10}$/.test(signupData.phone)) {
+        throw new Error('Please enter a valid 10-digit Indian phone number.');
+      }
+      if (signupData.phone.length < 7 || signupData.phone.length > 15) {
+        throw new Error('Please enter a valid phone number.');
+      }
+
+      // 2. Password validation
+      if (signupData.password.length < 8) {
+        throw new Error('Password must be at least 8 characters long.');
+      }
+
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 10); // 10 days trial (to be applied upon manual approval)
 
@@ -211,20 +226,23 @@ const LandingPage: React.FC = () => {
         throw new Error('This organization email is already registered.');
       }
 
-      // 1. Save to Registrations (for keeping track of offer letters and details)
+      const combinedPhone = `${signupData.countryCode} ${signupData.phone}`;
+
+      // 3. Save to Registrations (for keeping track of offer letters and details)
       const { error: dbError } = await supabase
         .from('hr_registrations')
         .insert([{
           name: signupData.name,
           org_name: signupData.orgName,
           org_email: signupData.orgEmail,
-          phone: signupData.phone,
+          phone: combinedPhone,
+          password: signupData.password,
           status: 'pending'
         }]);
 
       if (dbError) throw dbError;
 
-      // 3. Send real email via Resend
+      // 4. Send real email via Resend
       try {
         await sendEmail({
           to: 'vyara2026@gmail.com', // Admin notification
@@ -236,7 +254,8 @@ const LandingPage: React.FC = () => {
                 <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Name:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${signupData.name}</td></tr>
                 <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Organization:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${signupData.orgName}</td></tr>
                 <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Email:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${signupData.orgEmail}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Phone:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${signupData.phone}</td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Phone:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${combinedPhone}</td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Requested Password:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>${signupData.password}</strong></td></tr>
                 <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Trial Status:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">Pending Approval (Exp: ${expiresAt.toLocaleDateString()})</td></tr>
               </table>
             </div>
@@ -253,7 +272,9 @@ const LandingPage: React.FC = () => {
         name: '',
         orgName: '',
         orgEmail: '',
+        countryCode: '+91',
         phone: '',
+        password: '',
         offerLetter: null
       });
     } catch (err: any) {
@@ -754,14 +775,33 @@ const LandingPage: React.FC = () => {
                   </div>
                   <div className="form-group">
                     <label className="form-label">Phone Number</label>
-                    <input 
-                      type="tel" 
-                      className="form-input" 
-                      placeholder="+91 00000 00000" 
-                      required
-                      value={signupData.phone}
-                      onChange={(e) => setSignupData({...signupData, phone: e.target.value})}
-                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <select 
+                        value={signupData.countryCode} 
+                        onChange={(e) => setSignupData({...signupData, countryCode: e.target.value})}
+                        className="form-input"
+                        style={{ width: '100px', cursor: 'pointer' }}
+                        title="Country Code"
+                      >
+                        <option value="+91">🇮🇳 +91</option>
+                        <option value="+1">🇺🇸 +1</option>
+                        <option value="+44">🇬🇧 +44</option>
+                        <option value="+61">🇦🇺 +61</option>
+                        <option value="+971">🇦🇪 +971</option>
+                      </select>
+                      <input 
+                        type="tel" 
+                        className="form-input" 
+                        style={{ flex: 1 }}
+                        placeholder="10-digit number" 
+                        required
+                        value={signupData.phone}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, ''); // Allow only numbers
+                          setSignupData({...signupData, phone: val});
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -787,6 +827,18 @@ const LandingPage: React.FC = () => {
                     autoComplete="off"
                     value={signupData.orgEmail}
                     onChange={(e) => setSignupData({...signupData, orgEmail: e.target.value})}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Set Password</label>
+                  <input 
+                    type="password" 
+                    className="form-input" 
+                    placeholder="Create a password (min. 8 characters)" 
+                    required
+                    value={signupData.password}
+                    onChange={(e) => setSignupData({...signupData, password: e.target.value})}
                   />
                 </div>
 
