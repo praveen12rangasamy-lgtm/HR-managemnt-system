@@ -399,7 +399,8 @@ const Dashboard = () => {
         .eq('hired_by', profile?.email);
       
       let filteredAdminProfiles = adminProfiles || [];
-      if (profile?.role === 'admin') {
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      if (profile?.email && primaryAdmins.includes(profile.email.trim().toLowerCase())) {
         const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
         filteredAdminProfiles = filteredAdminProfiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || ''));
       }

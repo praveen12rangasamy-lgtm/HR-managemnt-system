@@ -4,6 +4,39 @@ import './LandingPage.css';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendEmail } from '../lib/resend';
+import { Search, ChevronDown } from 'lucide-react';
+
+const countries = [
+  { code: '+91', flag: '🇮🇳', name: 'India' },
+  { code: '+1', flag: '🇺🇸', name: 'United States' },
+  { code: '+44', flag: '🇬🇧', name: 'United Kingdom' },
+  { code: '+971', flag: '🇦🇪', name: 'United Arab Emirates' },
+  { code: '+65', flag: '🇸🇬', name: 'Singapore' },
+  { code: '+60', flag: '🇲🇾', name: 'Malaysia' },
+  { code: '+61', flag: '🇦🇺', name: 'Australia' },
+  { code: '+93', flag: '🇦🇫', name: 'Afghanistan' },
+  { code: '+358', flag: '🇫🇮', name: 'Åland Islands' },
+  { code: '+355', flag: '🇦🇱', name: 'Albania' },
+  { code: '+213', flag: '🇩🇿', name: 'Algeria' },
+  { code: '+1', flag: '🇦🇸', name: 'American Samoa' },
+  { code: '+376', flag: '🇦🇩', name: 'Andorra' },
+  { code: '+244', flag: '🇦🇴', name: 'Angola' },
+  { code: '+1', flag: '🇦🇮', name: 'Anguilla' },
+  { code: '+1', flag: '🇦🇬', name: 'Antigua and Barbuda' },
+  { code: '+966', flag: '🇸🇦', name: 'Saudi Arabia' },
+  { code: '+1', flag: '🇨🇦', name: 'Canada' },
+  { code: '+49', flag: '🇩🇪', name: 'Germany' },
+  { code: '+33', flag: '🇫🇷', name: 'France' },
+  { code: '+81', flag: '🇯🇵', name: 'Japan' },
+  { code: '+86', flag: '🇨🇳', name: 'China' },
+  { code: '+92', flag: '🇵🇰', name: 'Pakistan' },
+  { code: '+880', flag: '🇧🇩', name: 'Bangladesh' },
+  { code: '+94', flag: '🇱🇰', name: 'Sri Lanka' },
+  { code: '+977', flag: '🇳🇵', name: 'Nepal' },
+  { code: '+27', flag: '🇿🇦', name: 'South Africa' },
+  { code: '+7', flag: '🇷🇺', name: 'Russia' },
+  { code: '+55', flag: '🇧🇷', name: 'Brazil' }
+];
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -24,11 +57,28 @@ const LandingPage: React.FC = () => {
     name: '',
     orgName: '',
     orgEmail: '',
-    countryCode: '+91',
     phone: '',
-    password: '',
     offerLetter: null as File | null
   });
+
+  const [selectedCountry, setSelectedCountry] = useState(countries[0]);
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+
+  useEffect(() => {
+    if (!isCountryDropdownOpen) return;
+    const handleOutsideClick = () => {
+      setIsCountryDropdownOpen(false);
+    };
+    // Use timeout to prevent immediate trigger upon opening click
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleOutsideClick);
+    }, 10);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleOutsideClick);
+    };
+  }, [isCountryDropdownOpen]);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -198,19 +248,6 @@ const LandingPage: React.FC = () => {
     setError(null);
     
     try {
-      // 1. Phone number validation
-      if (signupData.countryCode === '+91' && !/^\d{10}$/.test(signupData.phone)) {
-        throw new Error('Please enter a valid 10-digit Indian phone number.');
-      }
-      if (signupData.phone.length < 7 || signupData.phone.length > 15) {
-        throw new Error('Please enter a valid phone number.');
-      }
-
-      // 2. Password validation
-      if (signupData.password.length < 8) {
-        throw new Error('Password must be at least 8 characters long.');
-      }
-
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 10); // 10 days trial (to be applied upon manual approval)
 
@@ -226,23 +263,20 @@ const LandingPage: React.FC = () => {
         throw new Error('This organization email is already registered.');
       }
 
-      const combinedPhone = `${signupData.countryCode} ${signupData.phone}`;
-
-      // 3. Save to Registrations (for keeping track of offer letters and details)
+      // 1. Save to Registrations (for keeping track of offer letters and details)
       const { error: dbError } = await supabase
         .from('hr_registrations')
         .insert([{
           name: signupData.name,
           org_name: signupData.orgName,
           org_email: signupData.orgEmail,
-          phone: combinedPhone,
-          password: signupData.password,
+          phone: `${selectedCountry.code} ${signupData.phone}`,
           status: 'pending'
         }]);
 
       if (dbError) throw dbError;
 
-      // 4. Send real email via Resend
+      // 3. Send real email via Resend
       try {
         await sendEmail({
           to: 'vyara2026@gmail.com', // Admin notification
@@ -254,8 +288,7 @@ const LandingPage: React.FC = () => {
                 <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Name:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${signupData.name}</td></tr>
                 <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Organization:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${signupData.orgName}</td></tr>
                 <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Email:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${signupData.orgEmail}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Phone:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${combinedPhone}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Requested Password:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>${signupData.password}</strong></td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Phone:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">${selectedCountry.code} ${signupData.phone}</td></tr>
                 <tr><td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>Trial Status:</strong></td><td style="padding: 10px; border-bottom: 1px solid #eee;">Pending Approval (Exp: ${expiresAt.toLocaleDateString()})</td></tr>
               </table>
             </div>
@@ -272,9 +305,7 @@ const LandingPage: React.FC = () => {
         name: '',
         orgName: '',
         orgEmail: '',
-        countryCode: '+91',
         phone: '',
-        password: '',
         offerLetter: null
       });
     } catch (err: any) {
@@ -773,35 +804,72 @@ const LandingPage: React.FC = () => {
                       onChange={(e) => setSignupData({...signupData, name: e.target.value})}
                     />
                   </div>
-                  <div className="form-group">
+                   <div className="form-group">
                     <label className="form-label">Phone Number</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <select 
-                        value={signupData.countryCode} 
-                        onChange={(e) => setSignupData({...signupData, countryCode: e.target.value})}
-                        className="form-input"
-                        style={{ width: '100px', cursor: 'pointer' }}
-                        title="Country Code"
-                      >
-                        <option value="+91">🇮🇳 +91</option>
-                        <option value="+1">🇺🇸 +1</option>
-                        <option value="+44">🇬🇧 +44</option>
-                        <option value="+61">🇦🇺 +61</option>
-                        <option value="+971">🇦🇪 +971</option>
-                      </select>
-                      <input 
-                        type="tel" 
-                        className="form-input" 
-                        style={{ flex: 1 }}
-                        placeholder="10-digit number" 
-                        required
-                        value={signupData.phone}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, ''); // Allow only numbers
-                          setSignupData({...signupData, phone: val});
-                        }}
-                      />
-                    </div>
+                    <div className="phone-input-container">
+                       <div className="country-selector-wrapper">
+                         <button 
+                           type="button"
+                           className="form-input country-select-trigger"
+                           onClick={(e) => {
+                             e.preventDefault();
+                             setIsCountryDropdownOpen(!isCountryDropdownOpen);
+                           }}
+                         >
+                           <span className="selected-flag">{selectedCountry.flag}</span>
+                           <ChevronDown size={14} className={`arrow-icon ${isCountryDropdownOpen ? 'open' : ''}`} />
+                         </button>
+                         
+                         {isCountryDropdownOpen && (
+                           <div className="country-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                             <div className="dropdown-search-wrapper">
+                               <Search size={14} className="search-icon" />
+                               <input 
+                                 type="text"
+                                 className="dropdown-search-input"
+                                 placeholder="Search country..."
+                                 value={countrySearch}
+                                 onChange={(e) => setCountrySearch(e.target.value)}
+                                 onClick={(e) => e.stopPropagation()}
+                                 autoFocus
+                               />
+                             </div>
+                             <div className="country-options-list">
+                               {countries
+                                 .filter(c => 
+                                   c.name.toLowerCase().includes(countrySearch.toLowerCase()) || 
+                                   c.code.includes(countrySearch)
+                                 )
+                                 .map(c => (
+                                   <button
+                                     key={`${c.code}-${c.name}`}
+                                     type="button"
+                                     className="country-option-item"
+                                     onClick={() => {
+                                       setSelectedCountry(c);
+                                       setIsCountryDropdownOpen(false);
+                                       setCountrySearch('');
+                                     }}
+                                   >
+                                     <span className="option-flag">{c.flag}</span>
+                                     <span className="option-name">{c.name}</span>
+                                     <span className="option-code">{c.code}</span>
+                                   </button>
+                                 ))
+                               }
+                             </div>
+                           </div>
+                         )}
+                       </div>
+                       <input 
+                         type="tel" 
+                         className="form-input phone-number-input" 
+                         placeholder="Enter a phone number" 
+                         required
+                         value={signupData.phone}
+                         onChange={(e) => setSignupData({...signupData, phone: e.target.value})}
+                       />
+                     </div>
                   </div>
                 </div>
 
@@ -827,18 +895,6 @@ const LandingPage: React.FC = () => {
                     autoComplete="off"
                     value={signupData.orgEmail}
                     onChange={(e) => setSignupData({...signupData, orgEmail: e.target.value})}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Set Password</label>
-                  <input 
-                    type="password" 
-                    className="form-input" 
-                    placeholder="Create a password (min. 8 characters)" 
-                    required
-                    value={signupData.password}
-                    onChange={(e) => setSignupData({...signupData, password: e.target.value})}
                   />
                 </div>
 

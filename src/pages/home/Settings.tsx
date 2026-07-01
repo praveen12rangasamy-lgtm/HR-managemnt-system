@@ -10,45 +10,6 @@ const Settings = () => {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const [isResetting, setIsResetting] = useState(false);
-  const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
-  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
-
-  const handleCreateAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsCreatingAdmin(true);
-    showToast("Provisioning administrator account...");
-
-    try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({
-          email: adminForm.email,
-          password: adminForm.password,
-          full_name: adminForm.name,
-          role: 'admin'
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.status !== 200 || data.error) {
-        showToast(`Failed: ${data.error || 'Unknown error'}`);
-        return;
-      }
-
-      showToast("Admin account created & welcome email dispatched!");
-      setAdminForm({ name: '', email: '', password: '' });
-    } catch (err: any) {
-      showToast(`Error: ${err.message}`);
-    } finally {
-      setIsCreatingAdmin(false);
-    }
-  };
   
   const handleSystemReset = async () => {
     if (!window.confirm("CRITICAL WARNING: This will delete ALL employees, payroll history, loans, and tax records permanently. This cannot be undone. Are you absolutely sure?")) {
@@ -297,65 +258,6 @@ const Settings = () => {
           </CardContent>
         </Card>
       </div>
-
-      {isAdmin && (
-        <Card className="border-t-4 border-t-brand-orange shadow-sm mt-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <Shield size={22} className="text-brand-orange" />
-              Admin Management (System Admins Only)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-gray-500 font-medium">
-              Create a new administrator account. The system will automatically register them and send a welcome credentials email.
-            </p>
-            <form onSubmit={handleCreateAdmin} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end bg-gray-50 p-6 rounded-2xl border border-gray-100">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Admin Name</label>
-                <input 
-                  type="text" 
-                  value={adminForm.name} 
-                  title="Admin Name"
-                  placeholder="e.g. Jin"
-                  onChange={(e) => setAdminForm({...adminForm, name: e.target.value})} 
-                  className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none bg-white font-medium"
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Admin Email</label>
-                <input 
-                  type="email" 
-                  value={adminForm.email} 
-                  title="Admin Email"
-                  placeholder="e.g. jin@gmail.com"
-                  onChange={(e) => setAdminForm({...adminForm, email: e.target.value})} 
-                  className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none bg-white font-medium"
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Temporary Password</label>
-                <div className="flex gap-3">
-                  <input 
-                    type="text" 
-                    value={adminForm.password} 
-                    title="Temporary Password"
-                    placeholder="e.g. 01.2026."
-                    onChange={(e) => setAdminForm({...adminForm, password: e.target.value})} 
-                    className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none bg-white font-bold"
-                    required
-                  />
-                  <Button type="submit" disabled={isCreatingAdmin} className="bg-brand-orange hover:bg-orange-600 font-bold px-6 shrink-0 h-[46px]">
-                    {isCreatingAdmin ? 'Creating...' : 'Create Admin'}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

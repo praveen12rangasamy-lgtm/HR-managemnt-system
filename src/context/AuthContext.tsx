@@ -50,8 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
 
     // Primary Admin bypass: ensure they always get the admin role locally
-    // Primary Admin bypass: ensure you always get the admin role locally as a fail-safe
-    if (currentUser.email === 'praveen12rangasamy@gmail.com') {
+    const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+    if (currentUser.email && primaryAdmins.includes(currentUser.email.trim().toLowerCase())) {
       const adminProfile = {
         id: currentUser.id,
         full_name: currentUser.user_metadata?.full_name || 'Admin',
