@@ -74,6 +74,7 @@ const SalaryComputation: React.FC<SalaryComputationProps> = ({ employees, onPayr
           <select 
             value={selectedEmpId}
             onChange={(e) => setSelectedEmpId(e.target.value)}
+            title="Select Employee"
             className="w-full bg-gray-50 border border-gray-100 rounded-[9px] pl-10 pr-4 py-2.5 text-sm focus:border-brand-orange outline-none transition-all font-bold"
           >
             <option value="">{employees.length === 0 ? 'No employees found in database' : 'Select Employee to Pay...'}</option>
@@ -154,6 +155,8 @@ const Row = ({ label, value, editable, onChange, negative }: any) => (
       <input 
         type="number" 
         defaultValue={value} 
+        title={label}
+        placeholder={label}
         onChange={(e) => onChange(e.target.value)}
         className="bg-white border border-gray-200 rounded-[6px] w-28 px-2 py-1.5 text-right text-sm outline-none focus:border-brand-orange font-bold text-brand-navy shadow-sm"
       />

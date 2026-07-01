@@ -776,6 +776,8 @@ const HiringOnboarding = () => {
                 type="file" 
                 accept=".txt" 
                 id="offer-letter-template-upload" 
+                title="Upload Offer Letter Template"
+                placeholder="Upload Offer Letter Template"
                 className="hidden" 
                 onChange={(e) => {
                   const file = e.target.files?.[0];

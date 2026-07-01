@@ -229,6 +229,7 @@ const HelpDesk = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Issue Category</label>
                 <select 
                   className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal text-sm"
+                  title="Issue Category"
                   value={ticketType}
                   onChange={(e) => setTicketType(e.target.value)}
                 >
@@ -242,6 +243,7 @@ const HelpDesk = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Priority Level</label>
                 <select 
                   className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal text-sm h-10"
+                  title="Priority Level"
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
                 >

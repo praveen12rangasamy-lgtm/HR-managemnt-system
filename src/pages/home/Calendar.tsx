@@ -639,8 +639,8 @@ const CalendarPage: React.FC = () => {
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <span className="text-xs font-bold text-brand-navy uppercase tracking-wider">Quick Pick</span>
               <div className="flex items-center gap-1.5">
-                <button onClick={() => navigateMonth('prev')} className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><ChevronLeft size={16} /></button>
-                <button onClick={() => navigateMonth('next')} className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><ChevronRight size={16} /></button>
+                <button onClick={() => navigateMonth('prev')} title="Previous Month" aria-label="Previous Month" className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><ChevronLeft size={16} /></button>
+                <button onClick={() => navigateMonth('next')} title="Next Month" aria-label="Next Month" className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><ChevronRight size={16} /></button>
               </div>
             </CardHeader>
             <CardContent>
@@ -726,14 +726,14 @@ const CalendarPage: React.FC = () => {
                   {currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
                 </h3>
                 <div className="flex items-center gap-1 border rounded-xl bg-white p-1">
-                  <button onClick={() => navigateMonth('prev')} className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-500 transition-colors"><ChevronLeft size={16} /></button>
+                  <button onClick={() => navigateMonth('prev')} title="Previous Month" aria-label="Previous Month" className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-500 transition-colors"><ChevronLeft size={16} /></button>
                   <button 
                     onClick={() => setCurrentDate(new Date())} 
                     className="px-3 py-1 text-xs font-bold text-brand-navy hover:bg-gray-50 rounded-lg transition-colors border-l border-r"
                   >
                     Today
                   </button>
-                  <button onClick={() => navigateMonth('next')} className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-500 transition-colors"><ChevronRight size={16} /></button>
+                  <button onClick={() => navigateMonth('next')} title="Next Month" aria-label="Next Month" className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-500 transition-colors"><ChevronRight size={16} /></button>
                 </div>
               </div>
 
@@ -794,7 +794,7 @@ const CalendarPage: React.FC = () => {
                 <CalendarIcon size={20} className="text-brand-orange" />
                 Schedule New Event
               </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-white/60 hover:text-white transition-colors"><X size={20} /></button>
+              <button onClick={() => setShowAddModal(false)} title="Close" aria-label="Close" className="text-white/60 hover:text-white transition-colors"><X size={20} /></button>
             </div>
             
             <form onSubmit={handleAddEventSubmit} className="p-6 space-y-4">
@@ -816,6 +816,7 @@ const CalendarPage: React.FC = () => {
                   <select 
                     value={formData.category}
                     onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                    title="Category"
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                     required
                   >
@@ -829,6 +830,8 @@ const CalendarPage: React.FC = () => {
                   <input 
                     type="date" 
                     value={formData.date}
+                    title="Date"
+                    placeholder="Date"
                     onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                     required
@@ -842,6 +845,8 @@ const CalendarPage: React.FC = () => {
                   <input 
                     type="time" 
                     value={formData.startTime}
+                    title="Start Time"
+                    placeholder="Start Time"
                     onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                   />
@@ -851,6 +856,8 @@ const CalendarPage: React.FC = () => {
                   <input 
                     type="time" 
                     value={formData.endTime}
+                    title="End Time"
+                    placeholder="End Time"
                     onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                   />
@@ -909,7 +916,7 @@ const CalendarPage: React.FC = () => {
                 <Edit size={20} className="text-brand-orange" />
                 Edit Calendar Schedule
               </h3>
-              <button onClick={() => setShowEditModal(false)} className="text-white/60 hover:text-white transition-colors"><X size={20} /></button>
+              <button onClick={() => setShowEditModal(false)} title="Close" aria-label="Close" className="text-white/60 hover:text-white transition-colors"><X size={20} /></button>
             </div>
             
             <form onSubmit={handleEditEventSubmit} className="p-6 space-y-4">
@@ -918,6 +925,8 @@ const CalendarPage: React.FC = () => {
                 <input 
                   type="text" 
                   value={formData.title}
+                  title="Event Title"
+                  placeholder="Event Title"
                   onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                   className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none font-bold"
                   required
@@ -930,6 +939,7 @@ const CalendarPage: React.FC = () => {
                   <select 
                     value={formData.category}
                     onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                    title="Category"
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                     required
                   >
@@ -943,6 +953,8 @@ const CalendarPage: React.FC = () => {
                   <input 
                     type="date" 
                     value={formData.date}
+                    title="Date"
+                    placeholder="Date"
                     onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                     required
@@ -956,6 +968,8 @@ const CalendarPage: React.FC = () => {
                   <input 
                     type="time" 
                     value={formData.startTime}
+                    title="Start Time"
+                    placeholder="Start Time"
                     onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                   />
@@ -965,6 +979,8 @@ const CalendarPage: React.FC = () => {
                   <input 
                     type="time" 
                     value={formData.endTime}
+                    title="End Time"
+                    placeholder="End Time"
                     onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                   />
@@ -976,6 +992,8 @@ const CalendarPage: React.FC = () => {
                 <input 
                   type="text" 
                   value={formData.location}
+                  title="Location"
+                  placeholder="Location"
                   onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
                   className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none"
                 />
@@ -985,6 +1003,8 @@ const CalendarPage: React.FC = () => {
                 <label className="text-xs font-bold text-brand-navy uppercase">Description</label>
                 <textarea 
                   value={formData.description}
+                  title="Description"
+                  placeholder="Description"
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   rows={3}
                   className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-orange outline-none resize-none"
@@ -1023,6 +1043,8 @@ const CalendarPage: React.FC = () => {
             >
               <button 
                 onClick={() => setShowDetailModal(false)} 
+                title="Close"
+                aria-label="Close"
                 className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/10 hover:bg-black/20 p-1.5 rounded-full transition-all"
               >
                 <X size={16} />

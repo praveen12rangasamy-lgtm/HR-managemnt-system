@@ -541,6 +541,7 @@ const Leaves = () => {
                     <select 
                       className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal text-sm" 
                       required
+                      title="Leave Type"
                       value={formData.type}
                       onChange={(e) => setFormData({...formData, type: e.target.value})}
                     >
@@ -564,6 +565,8 @@ const Leaves = () => {
                         type="date" 
                         className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" 
                         required 
+                        title="Start Date"
+                        placeholder="Start Date"
                         value={formData.startDate}
                         onChange={(e) => setFormData({...formData, startDate: e.target.value})}
                       />
@@ -574,6 +577,8 @@ const Leaves = () => {
                         type="date" 
                         className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" 
                         required 
+                        title="End Date"
+                        placeholder="End Date"
                         value={formData.endDate}
                         onChange={(e) => setFormData({...formData, endDate: e.target.value})}
                       />

@@ -116,11 +116,11 @@ const Resignation = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><User size={12}/> Employee Full Name</label>
-                  <input type="text" readOnly value={profile?.full_name || 'N/A'} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm font-semibold text-brand-navy outline-none" />
+                  <input type="text" readOnly title="Employee Full Name" value={profile?.full_name || 'N/A'} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm font-semibold text-brand-navy outline-none" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Employee ID</label>
-                  <input type="text" readOnly value={profile?.employeeId || profile?.employee_id || 'N/A'} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm font-semibold text-brand-navy outline-none" />
+                  <input type="text" readOnly title="Employee ID" value={profile?.employeeId || profile?.employee_id || 'N/A'} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm font-semibold text-brand-navy outline-none" />
                 </div>
               </div>
 
@@ -129,6 +129,7 @@ const Resignation = () => {
                 <input 
                   type="date" 
                   disabled={resigned} 
+                  title="Proposed Last Working Day"
                   value={formData.lwd}
                   onChange={(e) => setFormData({...formData, lwd: e.target.value})}
                   className="w-full border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-brand-teal outline-none text-sm" 
@@ -153,16 +154,16 @@ const Resignation = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><FileText size={12}/> Resignation Letter</label>
-                    <input type="file" disabled={resigned} accept=".pdf" className="w-full text-[10px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-brand-teal/10 file:text-brand-teal hover:file:bg-brand-teal/20" required />
+                    <input type="file" disabled={resigned} title="Upload Resignation Letter" accept=".pdf" className="w-full text-[10px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-brand-teal/10 file:text-brand-teal hover:file:bg-brand-teal/20" required />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><ShieldCheck size={12}/> ID Card Scan</label>
-                    <input type="file" disabled={resigned} accept="image/*,.pdf" className="w-full text-[10px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-brand-navy/5 file:text-brand-navy hover:file:bg-brand-navy/10" required />
+                    <input type="file" disabled={resigned} title="Upload ID Card Scan" accept="image/*,.pdf" className="w-full text-[10px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-brand-navy/5 file:text-brand-navy hover:file:bg-brand-navy/10" required />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><Award size={12}/> Relieving/Experience Certificates</label>
-                  <input type="file" disabled={resigned} accept=".pdf" className="w-full text-[10px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
+                  <input type="file" disabled={resigned} title="Upload Relieving/Experience Certificates" accept=".pdf" className="w-full text-[10px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
                 </div>
               </div>
 
@@ -251,6 +252,7 @@ const Resignation = () => {
                         <input 
                           type="file" 
                           disabled={isInteractionDisabled}
+                          title={`Upload document for ${item.label}`}
                           onChange={(e) => {
                             if (e.target.files?.[0]) {
                               const updated = { ...checklist, [item.key]: true };

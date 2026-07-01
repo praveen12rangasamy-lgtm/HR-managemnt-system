@@ -62,8 +62,8 @@ const PayslipPreview: React.FC<PayslipPreviewProps> = ({ data, onApprove, status
           ● {status.toUpperCase()}
         </span>
         <div className="flex gap-2">
-          <button className="p-2 text-gray-400 hover:text-brand-orange hover:bg-white rounded-lg transition-all border border-transparent hover:border-gray-100"><Printer size={16} /></button>
-          <button className="p-2 text-gray-400 hover:text-brand-orange hover:bg-white rounded-lg transition-all border border-transparent hover:border-gray-100"><Download size={16} /></button>
+          <button title="Print Payslip" aria-label="Print Payslip" className="p-2 text-gray-400 hover:text-brand-orange hover:bg-white rounded-lg transition-all border border-transparent hover:border-gray-100"><Printer size={16} /></button>
+          <button title="Download Payslip" aria-label="Download Payslip" className="p-2 text-gray-400 hover:text-brand-orange hover:bg-white rounded-lg transition-all border border-transparent hover:border-gray-100"><Download size={16} /></button>
         </div>
       </div>
 
@@ -151,6 +151,8 @@ const PayslipPreview: React.FC<PayslipPreviewProps> = ({ data, onApprove, status
                       setIsProcessing(false);
                       setPaymentSuccess(false);
                     }}
+                    title="Go Back"
+                    aria-label="Go Back"
                     className="p-1 hover:bg-white/10 rounded-lg transition-colors text-white/80 hover:text-white"
                   >
                     <ArrowLeft size={16} />
@@ -171,6 +173,8 @@ const PayslipPreview: React.FC<PayslipPreviewProps> = ({ data, onApprove, status
                   setIsProcessing(false);
                   setPaymentSuccess(false);
                 }} 
+                title="Close"
+                aria-label="Close"
                 className="text-white/60 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-all"
               >
                 <X size={16} />

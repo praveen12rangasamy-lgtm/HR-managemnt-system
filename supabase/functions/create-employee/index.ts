@@ -200,6 +200,42 @@ serve(async (req: Request) => {
       });
     }
 
+    // 6. Send automatic welcome email to the new employee
+    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
+    if (RESEND_API_KEY) {
+      try {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${RESEND_API_KEY}`,
+          },
+          body: JSON.stringify({
+            from: 'VyaraHR <onboarding@vyarahr.space>',
+            to: [email],
+            subject: 'Welcome to VyaraHR!',
+            html: `
+              <div style="font-family: sans-serif; padding: 20px; color: #333; line-height: 1.6;">
+                <p>Dear ${full_name},</p>
+                <p>Welcome to VyaraHR! Your account has been created successfully.</p>
+                <p><strong>Login Details:</strong></p>
+                <div style="background: #f9f9f9; border: 1px solid #eee; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                  <p style="margin: 0 0 8px 0;"><strong>Login URL:</strong> <a href="https://www.vyarahr.space/" style="color: #ff5900; text-decoration: none;">https://www.vyarahr.space/</a></p>
+                  <p style="margin: 0 0 8px 0;"><strong>Email:</strong> ${email}</p>
+                  <p style="margin: 0;"><strong>Temporary Password:</strong> ${password}</p>
+                </div>
+                <p>Please log in and change your password after your first login.</p>
+                <p>Thank you for choosing VyaraHR.</p>
+                <p style="margin-top: 25px;">Regards,<br/><strong>VyaraHR Team</strong></p>
+              </div>
+            `
+          })
+        });
+      } catch (err) {
+        console.error('Failed to send welcome email:', err);
+      }
+    }
+
     return new Response(JSON.stringify({ success: true, userId: userId }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

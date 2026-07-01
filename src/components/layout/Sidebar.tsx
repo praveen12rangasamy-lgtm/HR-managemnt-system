@@ -76,6 +76,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isTablet }) => {
           {!isTablet && (
             <button 
               onClick={handleLogout}
+              title="Logout"
+              aria-label="Logout"
               className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
             >
               <LogOut size={16} />
