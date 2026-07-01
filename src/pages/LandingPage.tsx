@@ -199,6 +199,18 @@ const LandingPage: React.FC = () => {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 10); // 10 days trial (to be applied upon manual approval)
 
+      // Check if email already registered to prevent duplicates
+      const { data: existingReg, error: checkError } = await supabase
+        .from('hr_registrations')
+        .select('id')
+        .eq('org_email', signupData.orgEmail)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+      if (existingReg) {
+        throw new Error('This organization email is already registered.');
+      }
+
       // 1. Save to Registrations (for keeping track of offer letters and details)
       const { error: dbError } = await supabase
         .from('hr_registrations')
@@ -215,7 +227,7 @@ const LandingPage: React.FC = () => {
       // 3. Send real email via Resend
       try {
         await sendEmail({
-          to: 'praveen12rangasamy@gmail.com', // Admin notification
+          to: 'vyarahr2026@gmail.com', // Admin notification
           subject: `New HR Registration: ${signupData.orgName}`,
           html: `
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
