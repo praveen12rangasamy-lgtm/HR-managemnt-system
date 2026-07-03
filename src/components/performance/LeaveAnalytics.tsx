@@ -31,10 +31,15 @@ const LeaveAnalytics = () => {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const { data: rawLeaves, error } = await supabase
-        .from('leave_requests')
-        .select('*, profiles(full_name, department, role)')
-        .order('created_at', { ascending: false });
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      
+      let query = supabase.from('leave_requests').select('*, profiles!inner(full_name, department, role, hired_by)');
+      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+        query = query.eq('profiles.hired_by', adminEmail);
+      }
+      
+      const { data: rawLeaves, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
 

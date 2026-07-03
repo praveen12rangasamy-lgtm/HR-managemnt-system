@@ -27,10 +27,14 @@ const EmployeeOverview = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch all profiles
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*');
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      
+      let query = supabase.from('profiles').select('*');
+      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+        query = query.eq('hired_by', adminEmail);
+      }
+      const { data: profiles, error } = await query;
 
       if (error) throw error;
 

@@ -31,15 +31,19 @@ const PerformanceMetrics = () => {
     const fetchPerformanceData = async () => {
         setLoading(true);
         try {
-            const { data: rawProfiles, error } = await supabase
-                .from('profiles')
-                .select('id, full_name, department, performance_score, role, email');
+            const adminEmail = profile?.email || '';
+            const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+            
+            let query = supabase.from('profiles').select('id, full_name, department, performance_score, role, email');
+            if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+                query = query.eq('hired_by', adminEmail);
+            }
+            const { data: rawProfiles, error } = await query;
 
             if (error) throw error;
 
             if (rawProfiles) {
                 let profiles = rawProfiles || [];
-                const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
                 if (profile?.email && primaryAdmins.includes(profile.email.trim().toLowerCase())) {
                     const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
                     profiles = profiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || '') && p.role !== 'admin');

@@ -27,10 +27,18 @@ const AttendanceAnalytics = () => {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      
+      let profilesQuery = supabase.from('profiles').select('*');
+      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+        profilesQuery = profilesQuery.eq('hired_by', adminEmail);
+      }
+
       // Fetch logs and profiles
       const [logsRes, profilesRes] = await Promise.all([
         supabase.from('attendance').select('*').gte('date', firstDayOfMonth.toISOString().split('T')[0]),
-        supabase.from('profiles').select('*')
+        profilesQuery
       ]);
 
       if (logsRes.error) throw logsRes.error;
