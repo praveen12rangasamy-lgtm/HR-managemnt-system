@@ -5,9 +5,10 @@ import { Badge } from '../../components/ui/Badge';
 import { Send, Calendar as CalIcon, CheckCircle, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { getScopedKey } from '../../utils/tenantHelper';
 
 const Leaves = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
@@ -128,7 +129,8 @@ const Leaves = () => {
     }
 
     // Fetch localStorage mock requests
-    const mockLeaves = localStorage.getItem('hr_leave_requests');
+    const mockLeavesKey = getScopedKey('hr_leave_requests', profile, user);
+    const mockLeaves = localStorage.getItem(mockLeavesKey);
     if (mockLeaves) {
       const parsed = JSON.parse(mockLeaves);
       const formattedMocks = parsed.map((m: any) => ({
@@ -244,9 +246,10 @@ const Leaves = () => {
     const request = adminRequests.find(r => r.id === id);
     
     if (request?.is_mock) {
-      const mockLeaves = JSON.parse(localStorage.getItem('hr_leave_requests') || '[]');
+      const mockLeavesKey = getScopedKey('hr_leave_requests', profile, user);
+      const mockLeaves = JSON.parse(localStorage.getItem(mockLeavesKey) || '[]');
       const updated = mockLeaves.map((l: any) => l.id === id ? { ...l, status: newStatus } : l);
-      localStorage.setItem('hr_leave_requests', JSON.stringify(updated));
+      localStorage.setItem(mockLeavesKey, JSON.stringify(updated));
       
       setToast(`✓ Mock request ${newStatus} successfully`);
       await fetchAdminRequests();

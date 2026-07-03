@@ -7,6 +7,8 @@ import { getRelativeTime } from '../../lib/timeHelper';
 import { useAuth } from '../../context/AuthContext';
 import { jsPDF } from 'jspdf';
 
+import { getScopedKey } from '../../utils/tenantHelper';
+
 interface Job {
   id: number;
   title: string;
@@ -21,19 +23,8 @@ interface Job {
 }
 
 const Updates = () => {
-  const { profile } = useAuth();
-  const [jobs, setJobs] = useState<Job[]>(() => {
-    const saved = localStorage.getItem('hr_jobs');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 1, title: 'Senior React Developer', department: 'Engineering', type: 'Remote', salary: '₹ 12L - 15L', status: 'Active', Applied: 4, description: 'We are looking for a senior developer to lead our frontend initiatives.' },
-      { id: 2, title: 'UX Designer', department: 'Design', type: 'Full-time', salary: '₹ 8L - 10L', status: 'Active', Applied: 2, description: 'Join our design team to create world-class HR experiences.' }
-    ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('hr_jobs', JSON.stringify(jobs));
-  }, [jobs]);
+  const { profile, user } = useAuth();
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [toast, setToast] = useState('');
   const [postToLinkedin, setPostToLinkedin] = useState(false);
@@ -41,10 +32,32 @@ const Updates = () => {
   const [deptValue, setDeptValue] = useState('Engineering');
   const [editingJob, setEditingJob] = useState<Job | null>(null);
 
+  const defaultJobs = [
+    { id: 1, title: 'Senior React Developer', department: 'Engineering', type: 'Remote', salary: '₹ 12L - 15L', status: 'Active', Applied: 4, description: 'We are looking for a senior developer to lead our frontend initiatives.' },
+    { id: 2, title: 'UX Designer', department: 'Design', type: 'Full-time', salary: '₹ 8L - 10L', status: 'Active', Applied: 2, description: 'Join our design team to create world-class HR experiences.' }
+  ];
+
+  // Scoped loading
   useEffect(() => {
-    const notifications = JSON.parse(localStorage.getItem('hr_notifications') || '[]');
-    setAnnouncements(notifications);
-  }, []);
+    if (profile || user) {
+      const jobsKey = getScopedKey('hr_jobs', profile, user);
+      const notificationsKey = getScopedKey('hr_notifications', profile, user);
+      
+      const savedJobs = localStorage.getItem(jobsKey);
+      setJobs(savedJobs ? JSON.parse(savedJobs) : defaultJobs);
+      
+      const notifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
+      setAnnouncements(notifications);
+    }
+  }, [profile, user]);
+
+  // Scoped saving of jobs
+  useEffect(() => {
+    if ((profile || user) && jobs.length > 0) {
+      const jobsKey = getScopedKey('hr_jobs', profile, user);
+      localStorage.setItem(jobsKey, JSON.stringify(jobs));
+    }
+  }, [jobs, profile, user]);
 
   const salaryOptions = [
     '3,00,000', '4,00,000', '5,00,000', '6,00,000', '7,00,000', '8,00,000', 
@@ -73,9 +86,13 @@ const Updates = () => {
       summary: formData.get('summary') as string,
       eligibility: formData.get('eligibility') as string
     };
-    setJobs([newJob, ...jobs]);
+    const updatedJobs = [newJob, ...jobs];
+    setJobs(updatedJobs);
+    const jobsKey = getScopedKey('hr_jobs', profile, user);
+    localStorage.setItem(jobsKey, JSON.stringify(updatedJobs));
 
-    const notifications = JSON.parse(localStorage.getItem('hr_notifications') || '[]');
+    const notificationsKey = getScopedKey('hr_notifications', profile, user);
+    const notifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
     notifications.unshift({
       id: Date.now(),
       type: 'recruitment',
@@ -83,7 +100,7 @@ const Updates = () => {
       message: `${title} is now open for applications${postToLinkedin ? ' (Posted on LinkedIn)' : ''}.`,
       time: new Date().toISOString()
     });
-    localStorage.setItem('hr_notifications', JSON.stringify(notifications));
+    localStorage.setItem(notificationsKey, JSON.stringify(notifications));
     setAnnouncements(notifications);
     setDeptValue('Engineering');
     setCustomDept('');

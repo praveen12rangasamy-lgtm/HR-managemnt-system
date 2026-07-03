@@ -7,9 +7,10 @@ import { Badge } from '../../components/ui/Badge';
 import { Search, Filter, Mail, Phone, MapPin, Briefcase, Calendar, Clock, Download, Upload, CheckCircle, XCircle, UserPlus, Users, FileText, ChevronRight, AlertCircle, Trash2, CheckSquare, Send, CheckCircle2 as Check, Brain, Video, Play } from 'lucide-react';
 import { sendEmail } from '../../lib/resend';
 import { useAuth } from '../../context/AuthContext';
+import { getScopedKey } from '../../utils/tenantHelper';
 
 const HiringOnboarding = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [atsRun, setAtsRun] = useState(false);
   const [activeTab, setActiveTab] = useState<'Pool' | 'R1' | 'R2' | 'R3' | 'Onboarding'>('Pool');
   const [toast, setToast] = useState<{msg: string, type: 'info' | 'success'} | null>(null);
@@ -23,29 +24,42 @@ const HiringOnboarding = () => {
   const [offerLetterTemplate, setOfferLetterTemplate] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [applicants, setApplicants] = useState<any[]>(() => {
-    const saved = localStorage.getItem('hr_applicants');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [applicants, setApplicants] = useState<any[]>([]);
   const [atsLoading, setAtsLoading] = useState(false);
 
+  // Scoped loading
   useEffect(() => {
-    localStorage.setItem('hr_applicants', JSON.stringify(applicants));
-  }, [applicants]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('hr_applicants');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      const containsMock = parsed.some((p: any) => p.name === "John Doe" || p.name === "Jane Smith" || p.name === "Bob Johnson");
-      if (containsMock) {
-        const cleaned = parsed.filter((p: any) => p.name !== "John Doe" && p.name !== "Jane Smith" && p.name !== "Bob Johnson");
-        setApplicants(cleaned);
-        localStorage.setItem('hr_applicants', JSON.stringify(cleaned));
+    if (profile || user) {
+      const key = getScopedKey('hr_applicants', profile, user);
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const containsMock = parsed.some((p: any) => p.name === "John Doe" || p.name === "Jane Smith" || p.name === "Bob Johnson");
+          if (containsMock) {
+            const cleaned = parsed.filter((p: any) => p.name !== "John Doe" && p.name !== "Jane Smith" && p.name !== "Bob Johnson");
+            setApplicants(cleaned);
+            localStorage.setItem(key, JSON.stringify(cleaned));
+          } else {
+            setApplicants(parsed);
+          }
+        } catch (e) {
+          console.error(e);
+          setApplicants([]);
+        }
+      } else {
+        setApplicants([]);
       }
     }
-  }, []);
+  }, [profile, user]);
+
+  // Scoped saving
+  useEffect(() => {
+    if ((profile || user) && applicants.length > 0) {
+      const key = getScopedKey('hr_applicants', profile, user);
+      localStorage.setItem(key, JSON.stringify(applicants));
+    }
+  }, [applicants, profile, user]);
 
   const showToast = (msg: string, type: 'info' | 'success' = 'info') => {
     setToast({ msg, type });
@@ -147,10 +161,15 @@ const HiringOnboarding = () => {
 
   const fetchAllEmployees = async () => {
     try {
-      // 1. Get real profiles from Supabase
-      const { data: supabaseProfiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, employee_id, email, role, designation');
+      // 1. Get real profiles from Supabase hired by this admin
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      
+      let query = supabase.from('profiles').select('id, full_name, employee_id, email, role, designation');
+      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+        query = query.eq('hired_by', adminEmail);
+      }
+      const { data: supabaseProfiles } = await query;
       
       let unified = (supabaseProfiles || [])
         .filter((p: any) => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com')
@@ -162,8 +181,9 @@ const HiringOnboarding = () => {
           status: 'Selected'
         }));
 
-      // 2. Get mock credentials from localStorage
-      const mockCreds = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
+      // 2. Get mock credentials from localStorage using scoped key
+      const credentialsKey = getScopedKey('hr_employee_credentials', profile, user);
+      const mockCreds = JSON.parse(localStorage.getItem(credentialsKey) || '[]');
       const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute', 'Angela Martin', 'John Doe'];
       let mockMapped = mockCreds
         .filter((m: any) => m.full_name && !mockOfficeNames.includes(m.full_name))
@@ -280,8 +300,9 @@ const HiringOnboarding = () => {
     setShowIdCreator(false);
     setSelectedCandidate(null);
 
-    // Persist for login simulation
-    const credentials = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
+    // Persist for login simulation using scoped credentials key
+    const credentialsKey = getScopedKey('hr_employee_credentials', profile, user);
+    const credentials = JSON.parse(localStorage.getItem(credentialsKey) || '[]');
     credentials.push({
       employeeId: empId,
       password: password,
@@ -289,7 +310,7 @@ const HiringOnboarding = () => {
       full_name: candidate?.name,
       role: 'employee'
     });
-    localStorage.setItem('hr_employee_credentials', JSON.stringify(credentials));
+    localStorage.setItem(credentialsKey, JSON.stringify(credentials));
 
     // Save custom empId, password, and salary directly on applicant record
     setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected', empId: empId, password: password, salary: salaryVal } : a));

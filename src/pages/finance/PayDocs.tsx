@@ -55,11 +55,13 @@ const PayDocs = () => {
         const currentMonth = new Date().toLocaleString('en-US', { month: 'long' });
         const currentYear = new Date().getFullYear().toString();
         
+        const employeeIds = filteredEmps.map(e => e.id);
         const { data: runs, error: runError } = await supabase
           .from('payroll_runs')
           .select('net_salary, status')
           .eq('month', currentMonth)
-          .eq('year', currentYear);
+          .eq('year', currentYear)
+          .in('employee_id', employeeIds);
 
         if (runs) {
           const total = runs.reduce((acc, run) => acc + Number(run.net_salary), 0);

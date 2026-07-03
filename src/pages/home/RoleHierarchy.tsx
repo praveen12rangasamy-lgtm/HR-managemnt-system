@@ -3,6 +3,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { User, ChevronDown, ChevronRight, Briefcase, Calendar, Award, Layers } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { getScopedKey } from '../../utils/tenantHelper';
 
 interface Employee {
   id: string;
@@ -69,23 +70,21 @@ const TreeNodeWrapper = ({ node, selectedNode, onSelect }: { node: Employee, sel
       </div>
 
       {hasChildren && isExpanded && (
-        <div className="relative pt-12 flex gap-8">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-6 bg-brand-navy/10" />
-          
-          {node.children!.length > 1 && (
-             <div className="absolute top-6 left-[90px] right-[90px] h-0.5 bg-brand-navy/10" />
-          )}
-
-          {node.children!.map((child) => (
-            <div key={child.id} className="relative">
-              <div className="absolute top-[-24px] left-1/2 -translate-x-1/2 w-0.5 h-6 bg-brand-navy/10" />
-              <TreeNodeWrapper 
-                node={child} 
-                selectedNode={selectedNode}
-                onSelect={onSelect}
-              />
-            </div>
-          ))}
+        <div className="flex flex-col items-center relative mt-6">
+          <div className="absolute top-[-24px] w-0.5 h-6 bg-brand-navy/10" />
+          <div className="absolute top-0 w-[calc(100%-180px)] h-0.5 bg-brand-navy/10" />
+          <div className="flex gap-6 relative">
+            {node.children?.map(child => (
+              <div key={child.id} className="relative">
+                <div className="absolute top-[-24px] left-1/2 -translate-x-1/2 w-0.5 h-6 bg-brand-navy/10" />
+                <TreeNodeWrapper 
+                  node={child} 
+                  selectedNode={selectedNode}
+                  onSelect={onSelect}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -93,19 +92,29 @@ const TreeNodeWrapper = ({ node, selectedNode, onSelect }: { node: Employee, sel
 };
 
 const RoleHierarchy = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const isAdmin = profile?.role === 'admin';
-  const [treeData, setTreeData] = useState<Employee>(() => {
-    const saved = localStorage.getItem('hr_role_hierarchy');
-    return saved ? JSON.parse(saved) : hierarchyData;
-  });
-  const [selectedNode, setSelectedNode] = useState<Employee | null>(treeData);
+  const [treeData, setTreeData] = useState<Employee>(hierarchyData);
+  const [selectedNode, setSelectedNode] = useState<Employee | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editRoleStr, setEditRoleStr] = useState('');
 
   useEffect(() => {
-    localStorage.setItem('hr_role_hierarchy', JSON.stringify(treeData));
-  }, [treeData]);
+    if (profile || user) {
+      const key = getScopedKey('hr_role_hierarchy', profile, user);
+      const saved = localStorage.getItem(key);
+      const data = saved ? JSON.parse(saved) : hierarchyData;
+      setTreeData(data);
+      setSelectedNode(data);
+    }
+  }, [profile, user]);
+
+  useEffect(() => {
+    if (profile || user) {
+      const key = getScopedKey('hr_role_hierarchy', profile, user);
+      localStorage.setItem(key, JSON.stringify(treeData));
+    }
+  }, [treeData, profile, user]);
 
   const handleSelectNode = (node: Employee) => {
     setSelectedNode(node);

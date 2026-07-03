@@ -3,24 +3,32 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { AlertCircle, CheckCircle, User, Laptop, Search, Filter } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { getScopedKey } from '../../utils/tenantHelper';
 
 const Query = () => {
+  const { profile, user } = useAuth();
   const [queries, setQueries] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Initial mock data
+  // Initial mock data using scoped keys
   useEffect(() => {
-    const initialQueries: any[] = [];
-    setQueries(JSON.parse(localStorage.getItem('asset_queries') || JSON.stringify(initialQueries)));
-  }, []);
+    if (profile || user) {
+      const queryKey = getScopedKey('asset_queries', profile, user);
+      const initialQueries: any[] = [];
+      setQueries(JSON.parse(localStorage.getItem(queryKey) || JSON.stringify(initialQueries)));
+    }
+  }, [profile, user]);
 
   const handleResolve = (id: number) => {
+    const queryKey = getScopedKey('asset_queries', profile, user);
+    const equipKey = getScopedKey('all_equipment', profile, user);
     const updated = queries.map(q => q.id === id ? { ...q, status: 'Resolved' } : q);
     setQueries(updated);
-    localStorage.setItem('asset_queries', JSON.stringify(updated));
+    localStorage.setItem(queryKey, JSON.stringify(updated));
     
     // Update the equipment status in local storage (to be synced with Equipment.tsx)
-    const equipment = JSON.parse(localStorage.getItem('all_equipment') || '[]');
+    const equipment = JSON.parse(localStorage.getItem(equipKey) || '[]');
     const targetQuery = queries.find(q => q.id === id);
     if (targetQuery) {
        const updatedEquip = equipment.map((e: any) => 
@@ -28,7 +36,7 @@ const Query = () => {
          ? { ...e, status: 'Active' } 
          : e
        );
-       localStorage.setItem('all_equipment', JSON.stringify(updatedEquip));
+       localStorage.setItem(equipKey, JSON.stringify(updatedEquip));
     }
   };
 

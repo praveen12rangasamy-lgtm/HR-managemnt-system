@@ -169,9 +169,23 @@ const LandingPage: React.FC = () => {
     try {
       let targetEmail = employeeEmail.trim();
 
-      // 1. Try to find the email in localStorage (ideal for local testing)
-      const localCreds = JSON.parse(localStorage.getItem('hr_employee_credentials') || '[]');
-      const foundLocal = localCreds.find((c: any) => c.employeeId === targetEmail);
+      // 1. Try to find the email in localStorage (ideal for local testing) across all tenant-scoped keys
+      let foundLocal: any = null;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('hr_employee_credentials')) {
+          try {
+            const localCreds = JSON.parse(localStorage.getItem(key) || '[]');
+            const found = localCreds.find((c: any) => c.employeeId === targetEmail);
+            if (found) {
+              foundLocal = found;
+              break;
+            }
+          } catch (e) {
+            console.error('Error parsing scoped credentials:', e);
+          }
+        }
+      }
 
       if (foundLocal && foundLocal.email) {
         targetEmail = foundLocal.email;

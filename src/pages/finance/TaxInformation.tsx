@@ -29,13 +29,26 @@ const TaxInformation = () => {
 
   const fetchDeclarations = useCallback(async () => {
     if (isAdmin) {
-      const { data } = await supabase.from('tax_declarations').select('*, profiles(full_name, employee_id)');
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      
+      let query = supabase.from('profiles').select('id');
+      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+        query = query.eq('hired_by', adminEmail);
+      }
+      const { data: adminProfiles } = await query;
+      const empIds = (adminProfiles || []).map(p => p.id);
+
+      const { data } = await supabase
+        .from('tax_declarations')
+        .select('*, profiles(full_name, employee_id)')
+        .in('employee_id', empIds);
       if (data) setDeclarations(data);
     } else {
       const { data } = await supabase.from('tax_declarations').select('*').eq('employee_id', profile?.id).maybeSingle();
       if (data) setMyDeclaration(data);
     }
-  }, [isAdmin, profile?.id]);
+  }, [isAdmin, profile?.id, profile?.email]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

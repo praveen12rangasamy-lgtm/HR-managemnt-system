@@ -357,10 +357,13 @@ const PerformanceMetrics = () => {
                         </CardHeader>
                         <CardContent className="space-y-6 p-8 pt-0">
                             <p className="text-sm text-gray-600 font-medium border-l-2 border-red-500 pl-4 italic">Scheduling a mandatory recalibration session for <span className="text-brand-navy font-black uppercase">{selectedEmployee?.full_name}</span>.</p>
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-red-500 uppercase tracking-widest">Temporal Coordinates (Date)</label>
+                             <div className="space-y-3">
+                                <label htmlFor="recalibration-date" className="text-[10px] font-black text-red-500 uppercase tracking-widest">Temporal Coordinates (Date)</label>
                                 <input 
+                                    id="recalibration-date"
                                     type="date" 
+                                    title="Temporal Coordinates (Date)"
+                                    placeholder="Select Date"
                                     className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl text-brand-navy font-black outline-none focus:border-red-500 transition-all"
                                 />
                             </div>

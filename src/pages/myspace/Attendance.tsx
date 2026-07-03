@@ -73,7 +73,7 @@ const Attendance = () => {
           clock_out,
           status,
           entry_type,
-          profiles (
+          profiles!inner (
             employee_id,
             full_name,
             designation,

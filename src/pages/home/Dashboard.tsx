@@ -7,9 +7,10 @@ import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { Users, UserCheck, UserMinus, Send, RefreshCw, Mail, Briefcase, Calendar, Clock, LogOut as OffboardIcon, Layout, Fingerprint, Search, Plus, X, Bell, Pencil, Trash2, Download } from 'lucide-react';
 import { getRelativeTime } from '../../lib/timeHelper';
+import { getScopedKey } from '../../utils/tenantHelper';
 
 const Dashboard = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [stats, setStats] = useState({
     totalEmployees: 0,
     presentToday: 0,
@@ -65,8 +66,9 @@ const Dashboard = () => {
 
 
   useEffect(() => {
-    if (profile?.role === 'employee') {
-      const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
+    if (profile?.role === 'employee' || (profile && user)) {
+      const submissionsKey = getScopedKey('hr_employee_submissions', profile, user);
+      const allSubmissions = JSON.parse(localStorage.getItem(submissionsKey) || '{}');
       const empSub = (profile.employee_id ? allSubmissions[profile.employee_id] : null) || 
                      allSubmissions[profile.employeeId] || 
                      allSubmissions[profile.id] || {};
@@ -88,7 +90,8 @@ const Dashboard = () => {
   }, [profile]);
 
   const handleDocSubmit = () => {
-    const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
+    const submissionsKey = getScopedKey('hr_employee_submissions', profile, user);
+    const allSubmissions = JSON.parse(localStorage.getItem(submissionsKey) || '{}');
     const empId = profile?.employee_id || profile?.employeeId || profile?.id;
     if (!empId) return;
 
@@ -117,7 +120,7 @@ const Dashboard = () => {
       allSubmissions[profile.employeeId] = dataToSave;
     }
     
-    localStorage.setItem('hr_employee_submissions', JSON.stringify(allSubmissions));
+    localStorage.setItem(submissionsKey, JSON.stringify(allSubmissions));
     setSubmission(dataToSave);
     alert('Onboarding documents submitted successfully for review!');
   };
@@ -160,7 +163,8 @@ const Dashboard = () => {
   const postBroadcast = () => {
     if (!newUpdate.title || !newUpdate.message) return;
     
-    const notifications = JSON.parse(localStorage.getItem('hr_notifications') || '[]');
+    const notificationsKey = getScopedKey('hr_notifications', profile, user);
+    const notifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
     const notification = {
       id: `NOTIF-${Date.now()}`,
       type: 'broadcast',
@@ -171,7 +175,7 @@ const Dashboard = () => {
     };
     
     notifications.unshift(notification);
-    localStorage.setItem('hr_notifications', JSON.stringify(notifications.slice(0, 15)));
+    localStorage.setItem(notificationsKey, JSON.stringify(notifications.slice(0, 15)));
     
     setNewUpdate({ title: '', message: '' });
     setShowBroadcastModal(false);
@@ -180,8 +184,9 @@ const Dashboard = () => {
   };
 
   const handleDeleteAnnouncement = (id: any) => {
-    const updated = JSON.parse(localStorage.getItem('hr_notifications') || '[]').filter((a: any) => a.id !== id);
-    localStorage.setItem('hr_notifications', JSON.stringify(updated));
+    const notificationsKey = getScopedKey('hr_notifications', profile, user);
+    const updated = JSON.parse(localStorage.getItem(notificationsKey) || '[]').filter((a: any) => a.id !== id);
+    localStorage.setItem(notificationsKey, JSON.stringify(updated));
     setRefreshNotifyTrack(prev => prev + 1);
   };
 
@@ -191,12 +196,13 @@ const Dashboard = () => {
     const title = formData.get('editTitle') as string;
     const message = formData.get('editMessage') as string;
     
-    const allNotifications = JSON.parse(localStorage.getItem('hr_notifications') || '[]');
+    const notificationsKey = getScopedKey('hr_notifications', profile, user);
+    const allNotifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
     const updated = allNotifications.map((a: any) => 
       a.id === editingAnnouncement.id ? { ...a, title, message } : a
     );
     
-    localStorage.setItem('hr_notifications', JSON.stringify(updated));
+    localStorage.setItem(notificationsKey, JSON.stringify(updated));
     setEditingAnnouncement(null);
     setRefreshNotifyTrack(prev => prev + 1);
   };
@@ -255,8 +261,9 @@ const Dashboard = () => {
         
         let dbProfiles = (dbData || []).filter(p => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com');
 
-        // 2. Get local applicants in onboarding pipeline from localStorage
-        const localApplicants = JSON.parse(localStorage.getItem('hr_applicants') || '[]');
+        // 2. Get local applicants in onboarding pipeline from localStorage using scoped key
+        const applicantsKey = getScopedKey('hr_applicants', profile, user);
+        const localApplicants = JSON.parse(localStorage.getItem(applicantsKey) || '[]');
         const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute'];
         let localOnboarding = localApplicants
           .filter((a: any) => a.status === 'OfferSent' || a.status === 'OnboardingInProgress')
@@ -372,15 +379,15 @@ const Dashboard = () => {
         .from('leave_requests')
         .select(`
           *,
-          profiles:user_id (full_name, designation, hired_by)
+          profiles:user_id!inner (full_name, designation, hired_by)
         `)
         .eq('status', 'approved')
         .lte('start_date', today)
-        .gte('end_date', today);
+        .gte('end_date', today)
+        .eq('profiles.hired_by', profile?.email || '');
 
       if (!error && data) {
-        const filtered = data.filter((lr: any) => lr.profiles?.hired_by === profile?.email);
-        setAbsences(filtered);
+        setAbsences(data);
       }
     } catch (err) {
       console.error('Error fetching absences:', err);
@@ -1083,8 +1090,8 @@ const Dashboard = () => {
             <CardContent className="pt-6">
               <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200">
                 {(() => {
-                  const notifications = JSON.parse(localStorage.getItem('hr_notifications') || '[]')
-                    .filter((n: any) => n.admin_context === 'praveen12rangasamy@gmail.com');
+                  const notificationsKey = getScopedKey('hr_notifications', profile, user);
+                  const notifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
 
                   if (notifications.length === 0) {
                     return (
@@ -1293,6 +1300,8 @@ const Dashboard = () => {
               </CardTitle>
               <button 
                 onClick={() => setEditingEmployee(null)} 
+                title="Close"
+                aria-label="Close"
                 className="text-white/60 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-all"
               >
                 <X size={16} />
@@ -1300,9 +1309,12 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent className="pt-6 space-y-4 max-h-[70vh] overflow-y-auto">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-brand-navy uppercase pl-1">Full Name</label>
+                <label htmlFor="edit-full-name" className="text-xs font-bold text-brand-navy uppercase pl-1">Full Name</label>
                 <input 
+                  id="edit-full-name"
                   type="text" 
+                  title="Full Name"
+                  placeholder="Enter full name"
                   value={editFormData.fullName}
                   onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
                   className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
@@ -1312,18 +1324,24 @@ const Dashboard = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-brand-navy uppercase pl-1">Designation</label>
+                  <label htmlFor="edit-designation" className="text-xs font-bold text-brand-navy uppercase pl-1">Designation</label>
                   <input 
+                    id="edit-designation"
                     type="text" 
+                    title="Designation"
+                    placeholder="Enter designation"
                     value={editFormData.designation}
                     onChange={(e) => setEditFormData({ ...editFormData, designation: e.target.value })}
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-brand-navy uppercase pl-1">Department</label>
+                  <label htmlFor="edit-department" className="text-xs font-bold text-brand-navy uppercase pl-1">Department</label>
                   <input 
+                    id="edit-department"
                     type="text" 
+                    title="Department"
+                    placeholder="Enter department"
                     value={editFormData.department}
                     onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
                     className="w-full border p-3 rounded-xl text-sm focus:ring-2 focus:ring-brand-teal outline-none"

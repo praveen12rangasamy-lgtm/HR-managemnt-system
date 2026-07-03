@@ -6,9 +6,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { IndianRupee, Eye, EyeOff, FileDown, Loader2, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { getScopedKey } from '../../utils/tenantHelper';
 
 const PayrollSummary = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [showAmounts, setShowAmounts] = useState(false);
   const [metrics, setMetrics] = useState({
@@ -22,21 +23,25 @@ const PayrollSummary = () => {
 
   useEffect(() => {
     fetchPayrollData();
-  }, [profile]);
+  }, [profile, user]);
 
   const fetchPayrollData = async () => {
     setLoading(true);
     try {
-      // Fetch profiles with salaries
-      const { data: rawProfiles, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, department, salary, role, email');
+      // Fetch profiles with salaries hired by this admin
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      
+      let query = supabase.from('profiles').select('id, full_name, department, salary, role, email');
+      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+        query = query.eq('hired_by', adminEmail);
+      }
+      const { data: rawProfiles, error } = await query;
 
       if (error) throw error;
 
       if (rawProfiles) {
         let profiles = rawProfiles || [];
-        const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
         if (profile?.email && primaryAdmins.includes(profile.email.trim().toLowerCase())) {
           const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
           profiles = profiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || '') && p.role !== 'admin');
@@ -100,13 +105,14 @@ const PayrollSummary = () => {
   };
 
   const logAction = (action: string) => {
-    const logs = JSON.parse(localStorage.getItem('admin_audit_logs') || '[]');
+    const logsKey = getScopedKey('admin_audit_logs', profile, user);
+    const logs = JSON.parse(localStorage.getItem(logsKey) || '[]');
     logs.push({
       action,
       timestamp: new Date().toISOString(),
-      adminId: 'ADMIN-PROVEEN',
+      adminId: profile?.full_name || 'ADMIN',
     });
-    localStorage.setItem('admin_audit_logs', JSON.stringify(logs.slice(-100)));
+    localStorage.setItem(logsKey, JSON.stringify(logs.slice(-100)));
   };
 
   const toggleShowAmounts = () => {

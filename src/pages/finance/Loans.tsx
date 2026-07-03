@@ -15,12 +15,33 @@ const Loans = () => {
   }, []);
 
   const fetchLoans = async () => {
-    let query = supabase.from('loans').select('*, profiles(full_name, employee_id, department)');
-    if (!isAdmin) {
-      query = query.eq('employee_id', profile?.id);
+    try {
+      if (isAdmin) {
+        const adminEmail = profile?.email || '';
+        const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+        
+        let query = supabase.from('profiles').select('id');
+        if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+          query = query.eq('hired_by', adminEmail);
+        }
+        const { data: adminProfiles } = await query;
+        const empIds = (adminProfiles || []).map(p => p.id);
+
+        const { data } = await supabase
+          .from('loans')
+          .select('*, profiles(full_name, employee_id, department)')
+          .in('employee_id', empIds);
+        if (data) setLoans(data);
+      } else {
+        const { data } = await supabase
+          .from('loans')
+          .select('*, profiles(full_name, employee_id, department)')
+          .eq('employee_id', profile?.id);
+        if (data) setLoans(data);
+      }
+    } catch (err) {
+      console.error('Error fetching loans:', err);
     }
-    const { data } = await query;
-    if (data) setLoans(data);
   };
 
   const handleApply = async (loanData: any) => {

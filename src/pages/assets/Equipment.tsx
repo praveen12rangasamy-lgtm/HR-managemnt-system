@@ -4,6 +4,8 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Send, Eye, EyeOff, Shield, MonitorPlay, Laptop, AlertCircle, CheckCircle, Search, KeyRound, Plus, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { getScopedKey } from '../../utils/tenantHelper';
+import { useEffect } from 'react';
 
 interface EquipmentItem {
   employee: string;
@@ -22,7 +24,7 @@ interface LicenseItem {
 }
 
 const Equipment = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const [showPwd, setShowPwd] = useState(false);
   const [showKey, setShowKey] = useState(false);
@@ -35,30 +37,28 @@ const Equipment = () => {
   const [newHardware, setNewHardware] = useState({ employee: '', item: '', model: '', date: new Date().toISOString().split('T')[0] });
   const [newSoftware, setNewSoftware] = useState({ employee: '', software: '', key: '', expiry: '' });
 
-  // Equipment state - initialized from localStorage to avoid effect-based cascading renders
-  const [equipment, setEquipment] = useState<EquipmentItem[]>(() => {
-    const stored = localStorage.getItem('all_equipment');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  // Equipment and Licenses states
+  const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
+  const [licenses, setLicenses] = useState<LicenseItem[]>([]);
 
-  const [licenses, setLicenses] = useState<LicenseItem[]>(() => {
-    const stored = localStorage.getItem('software_licenses');
-    if (stored) {
+  useEffect(() => {
+    if (profile || user) {
+      const equipKey = getScopedKey('all_equipment', profile, user);
+      const licKey = getScopedKey('software_licenses', profile, user);
+      const storedEquip = localStorage.getItem(equipKey);
+      const storedLic = localStorage.getItem(licKey);
       try {
-        return JSON.parse(stored);
+        setEquipment(storedEquip ? JSON.parse(storedEquip) : []);
       } catch {
-        return [];
+        setEquipment([]);
+      }
+      try {
+        setLicenses(storedLic ? JSON.parse(storedLic) : []);
+      } catch {
+        setLicenses([]);
       }
     }
-    return [];
-  });
+  }, [profile, user]);
 
   const handleReport = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -72,7 +72,8 @@ const Equipment = () => {
       : item
     );
     setEquipment(updated);
-    localStorage.setItem('all_equipment', JSON.stringify(updated));
+    const equipKey = getScopedKey('all_equipment', profile, user);
+    localStorage.setItem(equipKey, JSON.stringify(updated));
 
     setToast('Your issue has been reported. Asset status changed to Repairing.');
     setTimeout(() => setToast(''), 4000);
@@ -83,7 +84,8 @@ const Equipment = () => {
     const newRecord = { ...newHardware, status: 'Active' };
     const updated = [newRecord, ...equipment];
     setEquipment(updated);
-    localStorage.setItem('all_equipment', JSON.stringify(updated));
+    const equipKey = getScopedKey('all_equipment', profile, user);
+    localStorage.setItem(equipKey, JSON.stringify(updated));
     setShowHardwareModal(false);
     setNewHardware({ employee: '', item: '', model: '', date: new Date().toISOString().split('T')[0] });
     setToast(`${newRecord.item} provided to ${newRecord.employee} successfully!`);
@@ -95,7 +97,8 @@ const Equipment = () => {
     const newRecord = { ...newSoftware, status: 'Active' };
     const updated = [newRecord, ...licenses];
     setLicenses(updated);
-    localStorage.setItem('software_licenses', JSON.stringify(updated));
+    const licKey = getScopedKey('software_licenses', profile, user);
+    localStorage.setItem(licKey, JSON.stringify(updated));
     setShowSoftwareModal(false);
     setNewSoftware({ employee: '', software: '', key: '', expiry: '' });
     setToast(`${newRecord.software} license provided to ${newRecord.employee} successfully!`);

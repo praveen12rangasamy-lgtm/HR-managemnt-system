@@ -163,17 +163,20 @@ const CalendarPage: React.FC = () => {
         return;
       }
       if (data) {
-        const mapped: CalendarEvent[] = data.map((d: any) => ({
-          id: d.id,
-          title: d.title,
-          description: d.description || undefined,
-          date: d.date,
-          startTime: d.start_time || undefined,
-          endTime: d.end_time || undefined,
-          category: d.category,
-          location: d.location || undefined,
-          isCustom: d.is_custom
-        }));
+        const adminEmail = (profile?.role === 'admin' ? profile?.email : profile?.hired_by)?.trim().toLowerCase() || '';
+        const mapped: CalendarEvent[] = data
+          .filter((d: any) => !d.is_custom || (adminEmail && d.id.startsWith(`custom-event-${adminEmail}-`)))
+          .map((d: any) => ({
+            id: d.id,
+            title: d.title,
+            description: d.description || undefined,
+            date: d.date,
+            startTime: d.start_time || undefined,
+            endTime: d.end_time || undefined,
+            category: d.category,
+            location: d.location || undefined,
+            isCustom: d.is_custom
+          }));
         setEvents(mapped);
       }
     } catch (err) {
@@ -266,8 +269,9 @@ const CalendarPage: React.FC = () => {
     e.preventDefault();
     if (!formData.title || !formData.category || !formData.date) return;
 
+    const adminEmail = (profile?.role === 'admin' ? profile?.email : profile?.hired_by)?.trim().toLowerCase() || 'default';
     const newEvent = {
-      id: `custom-event-${Date.now()}`,
+      id: `custom-event-${adminEmail}-${Date.now()}`,
       title: formData.title,
       category: formData.category,
       date: formData.date,

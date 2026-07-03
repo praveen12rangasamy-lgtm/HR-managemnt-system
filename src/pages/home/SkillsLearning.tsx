@@ -5,6 +5,7 @@ import { Badge } from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { BookOpen, Award, PlusCircle, Link as LinkIcon, CheckCircle, Clock, Trash2 } from 'lucide-react';
+import { getScopedKey } from '../../utils/tenantHelper';
 
 interface CourseAssigned {
   id: number;
@@ -18,7 +19,7 @@ interface CourseAssigned {
 }
 
 const SkillsLearning = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const [courses, setCourses] = useState<CourseAssigned[]>([]);
   const [courseInput, setCourseInput] = useState('');
@@ -28,12 +29,16 @@ const SkillsLearning = () => {
   const [submittingCourseId, setSubmittingCourseId] = useState<number | null>(null);
 
   useEffect(() => {
-    const savedCourses = JSON.parse(localStorage.getItem('hr_courses_assigned') || '[]');
-    setCourses(savedCourses);
-  }, []);
+    if (profile || user) {
+      const key = getScopedKey('hr_courses_assigned', profile, user);
+      const savedCourses = JSON.parse(localStorage.getItem(key) || '[]');
+      setCourses(savedCourses);
+    }
+  }, [profile, user]);
 
   const saveCoursesToStorage = (newCourses: CourseAssigned[]) => {
-    localStorage.setItem('hr_courses_assigned', JSON.stringify(newCourses));
+    const key = getScopedKey('hr_courses_assigned', profile, user);
+    localStorage.setItem(key, JSON.stringify(newCourses));
     setCourses(newCourses);
   };
 
@@ -45,16 +50,25 @@ const SkillsLearning = () => {
 
     // Attempt to fetch from Supabase
     try {
-      const { data, error } = await supabase.from('profiles').select('full_name');
-      if (data && !error) {
-        employeeNames = data.map(p => p.full_name);
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      
+      let query = supabase.from('profiles').select('full_name, role');
+      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+        query = query.eq('hired_by', adminEmail);
+      }
+      const { data } = await query;
+      
+      if (data) {
+        employeeNames = data.filter(p => p.role !== 'admin').map(p => p.full_name || '');
       }
     } catch (err) {
       console.error('Supabase fetch failed:', err);
     }
 
     let hierarchyNames: string[] = ['Admin'];
-    const savedHierarchy = localStorage.getItem('hr_role_hierarchy');
+    const hierarchyKey = getScopedKey('hr_role_hierarchy', profile, user);
+    const savedHierarchy = localStorage.getItem(hierarchyKey);
     if (savedHierarchy) {
       try {
         const rootNode = JSON.parse(savedHierarchy);
@@ -75,7 +89,8 @@ const SkillsLearning = () => {
 
     // Attempt to fetch from mock employee credentials storage
     let mockCredNames: string[] = [];
-    const savedCreds = localStorage.getItem('hr_employee_credentials');
+    const credentialsKey = getScopedKey('hr_employee_credentials', profile, user);
+    const savedCreds = localStorage.getItem(credentialsKey);
     if (savedCreds) {
       try {
         const creds = JSON.parse(savedCreds);

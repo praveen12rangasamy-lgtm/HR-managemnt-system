@@ -5,9 +5,10 @@ import { Button } from '../../components/ui/Button';
 import { Settings as SettingsIcon, Shield, Bell, Key, CheckCircle, AlertCircle, Lock, RefreshCw, Smartphone, Database, BookOpen, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { getScopedKey } from '../../utils/tenantHelper';
 
 const Settings = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const [isResetting, setIsResetting] = useState(false);
   
@@ -18,43 +19,73 @@ const Settings = () => {
 
     setIsResetting(true);
     try {
-      // 1. Delete all profiles from Supabase except the current admin
-      const { error: profErr } = await supabase
-        .from('profiles')
-        .delete()
-        .neq('id', profile?.id);
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      const isPrimary = primaryAdmins.includes(adminEmail.trim().toLowerCase());
+
+      // 1. Delete profiles hired by this admin (or all if primary admin)
+      let profileDeleteQuery = supabase.from('profiles').delete();
+      if (adminEmail && !isPrimary) {
+        profileDeleteQuery = profileDeleteQuery.eq('hired_by', adminEmail);
+      } else {
+        profileDeleteQuery = profileDeleteQuery.neq('id', profile?.id);
+      }
+      const { error: profErr } = await profileDeleteQuery;
       
       if (profErr) throw profErr;
 
-      // 2. Clear all finance-related tables and calendar events
-      await supabase.from('payroll_runs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('loans').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('tax_declarations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      
-      // Reset calendar events to default government holidays
-      await supabase.from('calendar_events').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      const defaultHolidays = [
-        { id: 'gov-holiday-1', title: 'New Year\'s Day 🎆', description: 'Official holiday for the first day of the year.', date: '2026-01-01', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
-        { id: 'gov-holiday-2', title: 'Republic Day 🇮🇳', description: 'Honors the date on which the Constitution of India came into effect.', date: '2026-01-26', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
-        { id: 'gov-holiday-3', title: 'Good Friday ✝️', description: 'Christian holiday commemorating the crucifixion of Jesus Christ.', date: '2026-04-03', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
-        { id: 'gov-holiday-4', title: 'May Day / Labour Day 🛠️', description: 'Celebration of workers and laborers.', date: '2026-05-01', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
-        { id: 'gov-holiday-5', title: 'Independence Day 🇮🇳', description: 'Commemorates the nation\'s independence.', date: '2026-08-15', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
-        { id: 'gov-holiday-6', title: 'Gandhi Jayanti 👓', description: 'Birthday of Mahatma Gandhi.', date: '2026-10-02', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
-        { id: 'gov-holiday-7', title: 'Diwali / Deepavali 🪔', description: 'Festival of lights.', date: '2026-11-08', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
-        { id: 'gov-holiday-8', title: 'Christmas Day 🎄', description: 'Annual festival commemorating the birth of Jesus Christ.', date: '2026-12-25', category: 'Company Holidays', location: 'National Holiday', is_custom: false }
-      ];
-      await supabase.from('calendar_events').insert(defaultHolidays);
+      // 2. Clear finance-related tables and calendar events scoped to this admin's employees
+      if (isPrimary) {
+        await supabase.from('payroll_runs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('loans').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('tax_declarations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        
+        // Reset calendar events to default government holidays
+        await supabase.from('calendar_events').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const defaultHolidays = [
+          { id: 'gov-holiday-1', title: 'New Year\'s Day 🎆', description: 'Official holiday for the first day of the year.', date: '2026-01-01', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
+          { id: 'gov-holiday-2', title: 'Republic Day 🇮🇳', description: 'Honors the date on which the Constitution of India came into effect.', date: '2026-01-26', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
+          { id: 'gov-holiday-3', title: 'Good Friday ✝️', description: 'Christian holiday commemorating the crucifixion of Jesus Christ.', date: '2026-04-03', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
+          { id: 'gov-holiday-4', title: 'May Day / Labour Day 🛠️', description: 'Celebration of workers and laborers.', date: '2026-05-01', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
+          { id: 'gov-holiday-5', title: 'Independence Day 🇮🇳', description: 'Commemorates the nation\'s independence.', date: '2026-08-15', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
+          { id: 'gov-holiday-6', title: 'Gandhi Jayanti 👓', description: 'Birthday of Mahatma Gandhi.', date: '2026-10-02', category: 'Company Holidays', location: 'National Holiday', is_custom: false },
+          { id: 'gov-holiday-7', title: 'Diwali / Deepavali 🪔', description: 'Festival of lights.', date: '2026-11-08', category: 'Company Holidays', location: 'Gazetted Holiday', is_custom: false },
+          { id: 'gov-holiday-8', title: 'Christmas Day 🎄', description: 'Annual festival commemorating the birth of Jesus Christ.', date: '2026-12-25', category: 'Company Holidays', location: 'National Holiday', is_custom: false }
+        ];
+        await supabase.from('calendar_events').insert(defaultHolidays);
+      } else {
+        const { data: myEmployees } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('hired_by', adminEmail);
+        const myEmployeeIds = (myEmployees || []).map(p => p.id);
+        
+        await supabase.from('payroll_runs').delete().in('employee_id', myEmployeeIds);
+        await supabase.from('loans').delete().in('employee_id', myEmployeeIds);
+        await supabase.from('tax_declarations').delete().in('employee_id', myEmployeeIds);
 
+        // Delete custom calendar events created by this admin
+        await supabase.from('calendar_events').delete().like('id', `custom-event-${adminEmail}-%`);
+      }
 
-      // 3. Clear relevant localStorage items
+      // 3. Clear relevant tenant-scoped localStorage items
       const keysToWipe = [
-        'hr_employee_credentials', 
-        'hr_employee_submissions',
-        'hr_loan_applications'
+        getScopedKey('hr_employee_credentials', profile, user), 
+        getScopedKey('hr_employee_submissions', profile, user),
+        getScopedKey('hr_loan_applications', profile, user),
+        getScopedKey('hr_applicants', profile, user),
+        getScopedKey('hr_leave_requests', profile, user),
+        getScopedKey('hr_role_hierarchy', profile, user),
+        getScopedKey('all_equipment', profile, user),
+        getScopedKey('software_licenses', profile, user),
+        getScopedKey('asset_queries', profile, user),
+        getScopedKey('hr_notifications', profile, user),
+        getScopedKey('hr_payroll_ledger', profile, user),
+        getScopedKey('hr_courses_assigned', profile, user)
       ];
       keysToWipe.forEach(k => localStorage.removeItem(k));
 
-      alert("System has been successfully reset. All employee data has been wiped.");
+      alert("System has been successfully reset. Your tenant's employee data has been wiped.");
       window.location.reload();
     } catch (err: any) {
       alert(`Error during reset: ${err.message}`);
@@ -236,6 +267,8 @@ const Settings = () => {
                       <input 
                         type="checkbox" 
                         className="sr-only peer" 
+                        title={notif.label}
+                        aria-label={notif.label}
                         checked={notificationSettings[notif.key as keyof typeof notificationSettings]} 
                         onChange={(e) => setNotificationSettings({
                           ...notificationSettings,
