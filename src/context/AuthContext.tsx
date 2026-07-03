@@ -73,16 +73,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    console.log('DEBUG [AuthContext] Current User:', {
+      id: currentUser.id,
+      email: currentUser.email,
+      metadata: currentUser.user_metadata
+    });
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', currentUser.id)
       .single();
     
+    console.log('DEBUG [AuthContext] Profile Fetch Result:', { data, error });
+    
     if (error && error.code === 'PGRST116') {
       // Profile not found! Auto-create one for manually created user (Admin)
       const metadataRole = currentUser.user_metadata?.role;
       const role = metadataRole === 'employee' ? 'employee' : 'admin';
+      console.log('DEBUG [AuthContext] Profile not found, auto-creating with role:', role);
       
       const newProfile = {
         id: currentUser.id,
