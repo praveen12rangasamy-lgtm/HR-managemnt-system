@@ -1,4 +1,4 @@
-import { User } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 
 export const getAdminEmail = (profile: any, user: User | null): string => {
   if (!profile) return user?.email?.trim().toLowerCase() || 'default';
