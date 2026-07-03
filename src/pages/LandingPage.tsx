@@ -91,6 +91,15 @@ const LandingPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Only automatically redirect if a valid session already exists on page mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/dashboard');
+      }
+    });
+  }, []);
+
+  useEffect(() => {
     const reveals = document.querySelectorAll('.reveal');
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
