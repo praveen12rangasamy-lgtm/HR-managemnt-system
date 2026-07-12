@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
-import { supabase } from '../../lib/supabase';
+import { supabase, DEFAULT_URL } from '../../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Search, Filter, Mail, Phone, MapPin, Briefcase, Calendar, Clock, Download, Upload, CheckCircle, XCircle, UserPlus, Users, FileText, ChevronRight, AlertCircle, Trash2, CheckSquare, Send, CheckCircle2 as Check, Brain, Video, Play } from 'lucide-react';
 import { sendEmail } from '../../lib/resend';
 import { useAuth } from '../../context/AuthContext';
-import { getScopedKey } from '../../utils/tenantHelper';
+
 
 const HiringOnboarding = () => {
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
   const [atsRun, setAtsRun] = useState(false);
   const [activeTab, setActiveTab] = useState<'Pool' | 'R1' | 'R2' | 'R3' | 'Onboarding'>('Pool');
   const [toast, setToast] = useState<{msg: string, type: 'info' | 'success'} | null>(null);
@@ -27,39 +27,39 @@ const HiringOnboarding = () => {
   const [applicants, setApplicants] = useState<any[]>([]);
   const [atsLoading, setAtsLoading] = useState(false);
 
-  // Scoped loading
+  // Load applicants from localStorage scoped by admin email
   useEffect(() => {
-    if (profile || user) {
-      const key = getScopedKey('hr_applicants', profile, user);
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          const containsMock = parsed.some((p: any) => p.name === "John Doe" || p.name === "Jane Smith" || p.name === "Bob Johnson");
-          if (containsMock) {
-            const cleaned = parsed.filter((p: any) => p.name !== "John Doe" && p.name !== "Jane Smith" && p.name !== "Bob Johnson");
-            setApplicants(cleaned);
-            localStorage.setItem(key, JSON.stringify(cleaned));
-          } else {
-            setApplicants(parsed);
-          }
-        } catch (e) {
-          console.error(e);
-          setApplicants([]);
+    const adminEmail = profile?.email || 'default';
+    const key = `hr_applicants_${adminEmail}`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Remove any old mock applicants
+        const cleaned = parsed.filter((p: any) =>
+          p.name !== "John Doe" && p.name !== "Jane Smith" && p.name !== "Bob Johnson"
+        );
+        setApplicants(cleaned);
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem(key, JSON.stringify(cleaned));
         }
-      } else {
+      } catch (e) {
+        console.error(e);
         setApplicants([]);
       }
+    } else {
+      setApplicants([]);
     }
-  }, [profile, user]);
+  }, [profile]);
 
-  // Scoped saving
+  // Save applicants to localStorage scoped by admin email
   useEffect(() => {
-    if ((profile || user) && applicants.length > 0) {
-      const key = getScopedKey('hr_applicants', profile, user);
+    if (profile?.email && applicants.length > 0) {
+      const key = `hr_applicants_${profile.email}`;
       localStorage.setItem(key, JSON.stringify(applicants));
     }
-  }, [applicants, profile, user]);
+  }, [applicants, profile]);
+
 
   const showToast = (msg: string, type: 'info' | 'success' = 'info') => {
     setToast({ msg, type });
@@ -161,65 +161,30 @@ const HiringOnboarding = () => {
 
   const fetchAllEmployees = async () => {
     try {
-      // 1. Get real profiles from Supabase hired by this admin
+      // Get real profiles from Supabase hired by this admin
       const adminEmail = profile?.email || '';
-      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      const superAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
       
       let query = supabase.from('profiles').select('id, full_name, employee_id, email, role, designation');
-      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+      if (adminEmail && !superAdmins.includes(adminEmail.trim().toLowerCase())) {
         query = query.eq('hired_by', adminEmail);
       }
       const { data: supabaseProfiles } = await query;
       
-      let unified = (supabaseProfiles || [])
-        .filter((p: any) => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com')
+      const employees = (supabaseProfiles || [])
+        .filter((p: any) => p.role === 'employee')
         .map((p: any) => ({
           id: p.id,
           name: p.full_name,
           empId: p.employee_id,
           email: p.email,
+          role: p.designation,
           status: 'Selected'
         }));
 
-      // 2. Get mock credentials from localStorage using scoped key
-      const credentialsKey = getScopedKey('hr_employee_credentials', profile, user);
-      const mockCreds = JSON.parse(localStorage.getItem(credentialsKey) || '[]');
-      const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute', 'Angela Martin', 'John Doe'];
-      let mockMapped = mockCreds
-        .filter((m: any) => m.full_name && !mockOfficeNames.includes(m.full_name))
-        .map((m: any) => ({
-          id: m.employeeId,
-          name: m.full_name,
-          empId: m.employeeId,
-          email: m.email,
-          status: 'Selected',
-          is_mock: true
-        }));
-
-      // 3. Current Selected applicants who might not be persisted yet
-      let currentHired = applicants.filter(a => a.status === 'Selected').map(a => ({
-        id: a.id,
-        name: a.name,
-        empId: a.empId,
-        email: a.email,
-        status: 'Selected'
-      }));
-
-      // Exclude fake profiles globally
-      const fakeNames = ['mukesh', 'sanjay', 'kanmani', 'angela martin', 'john doe'];
-      unified = unified.filter((p: any) => !fakeNames.includes(p.name?.toLowerCase() || ''));
-      mockMapped = mockMapped.filter((m: any) => !fakeNames.includes(m.name?.toLowerCase() || ''));
-      currentHired = currentHired.filter((a: any) => !fakeNames.includes(a.name?.toLowerCase() || ''));
-
-      // Merge and deduplicate by empId
-      const empMap = new Map();
-      [...unified, ...mockMapped, ...currentHired].forEach(emp => {
-        if (emp.empId) empMap.set(emp.empId, emp);
-      });
-
-      setAllEmployees(Array.from(empMap.values()));
+      setAllEmployees(employees);
     } catch (err) {
-      console.error('Error fetching comprehensive employee list:', err);
+      console.error('Error fetching employee list:', err);
     }
   };
 
@@ -290,32 +255,68 @@ const HiringOnboarding = () => {
     }
   };
 
-  const confirmSelection = (id: number) => {
+  const confirmSelection = async (id: number) => {
     const candidate = applicants.find(a => a.id === id);
-    const empId = customEmpId || `VYR-2024-00${id}`;
+    if (!candidate) return;
+    
+    const empId = customEmpId || `VYR-${new Date().getFullYear()}-${String(id).padStart(3, '0')}`;
     const password = customPassword || "Welcome@2024";
     const salaryVal = customSalary || "0";
+
+    if (!candidate.email) {
+      showToast("Candidate has no email address — cannot create account.", "info");
+      return;
+    }
 
     // Reset selection state
     setShowIdCreator(false);
     setSelectedCandidate(null);
 
-    // Persist for login simulation using scoped credentials key
-    const credentialsKey = getScopedKey('hr_employee_credentials', profile, user);
-    const credentials = JSON.parse(localStorage.getItem(credentialsKey) || '[]');
-    credentials.push({
-      employeeId: empId,
-      password: password,
-      email: candidate?.email,
-      full_name: candidate?.name,
-      role: 'employee'
-    });
-    localStorage.setItem(credentialsKey, JSON.stringify(credentials));
+    showToast(`Creating Supabase account for ${candidate.name}...`, "info");
 
-    // Save custom empId, password, and salary directly on applicant record
-    setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected', empId: empId, password: password, salary: salaryVal } : a));
-    
-    // Generate email offer letter using template
+    try {
+      // Strictly create employee in Supabase via edge function
+      const session = (await supabase.auth.getSession()).data.session;
+      const activeTenantUrl = localStorage.getItem('selected_tenant_url') || DEFAULT_URL;
+      const response = await fetch(`${activeTenantUrl}/functions/v1/create-employee`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          email: candidate.email,
+          password: password,
+          full_name: candidate.name,
+          designation: candidate.role,
+          gross_salary: salaryVal,
+          employee_id: empId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        const errMsg = data.error || 'Failed to create employee account.';
+        showToast(`Error: ${errMsg}`, "info");
+        // Still mark as selected in applicant list even if account failed
+        setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected', empId, password, salary: salaryVal } : a));
+        return;
+      }
+
+      // Update applicant status locally
+      setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected', empId, password, salary: salaryVal } : a));
+      showToast(`✅ Employee account created in Supabase! ID: ${empId}`, 'success');
+
+      // Refresh employee list
+      await fetchAllEmployees();
+    } catch (err: any) {
+      console.error("Error creating employee in Supabase:", err);
+      showToast(`Failed to create account: ${err.message}`, "info");
+      setApplicants(applicants.map(a => a.id === id ? { ...a, status: 'Selected', empId, password, salary: salaryVal } : a));
+    }
+
+    // Send offer letter email regardless
     const defaultTemplate = `
       <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
         <h2 style="color: #0f2d52;">Congratulations, {candidate_name}!</h2>
@@ -324,8 +325,9 @@ const HiringOnboarding = () => {
         <div style="background: #f0f7f7; padding: 15px; border-radius: 8px; margin: 20px 0;">
           <p style="margin: 0;"><strong>Employee ID:</strong> {employee_id}</p>
           <p style="margin: 5px 0 0 0;"><strong>Temporary Password:</strong> {password}</p>
+          <p style="margin: 5px 0 0 0;"><strong>Login URL:</strong> <a href="https://www.vyarahr.space/" style="color: #ff5900;">https://www.vyarahr.space/</a></p>
         </div>
-        <p>Please log in to your employee portal to complete your onboarding process.</p>
+        <p>Please log in using your <strong>Employee ID</strong> and the temporary password above. Change your password after first login.</p>
         <p>Welcome to the team!</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
         <p style="font-size: 12px; color: #666;">This is an automated message from the VyaraHR Platform.</p>
@@ -333,8 +335,6 @@ const HiringOnboarding = () => {
     `;
 
     let emailHtml = offerLetterTemplate ? offerLetterTemplate : defaultTemplate;
-    
-    // Replace placeholders
     emailHtml = emailHtml
       .replace(/{candidate_name}/g, candidate?.name || '')
       .replace(/{role}/g, candidate?.role || '')
@@ -342,7 +342,6 @@ const HiringOnboarding = () => {
       .replace(/{employee_id}/g, empId)
       .replace(/{password}/g, password);
 
-    // Send actual email via Resend
     if (candidate?.email) {
       sendEmail({
         to: candidate.email,
@@ -350,7 +349,7 @@ const HiringOnboarding = () => {
         html: emailHtml
       }).then(res => {
         if (res.success) {
-          showToast(`Offer Letter sent to ${candidate.email} via Resend ✓`, 'success');
+          showToast(`Offer Letter sent to ${candidate.email} ✓`, 'success');
         } else {
           showToast(`Account created, but email failed: ${res.error}`, 'info');
         }
@@ -363,48 +362,10 @@ const HiringOnboarding = () => {
       showToast("Please select a candidate to onboard.", "info");
       return;
     }
-
-    showToast("Creating employee account in Supabase...", "info");
-
-    try {
-      const empId = customEmpId || `VYR-2024-00${selectedCandidate.id}`;
-      const password = customPassword || "Welcome@2024";
-      const salary = selectedCandidate.salary || "0";
-      
-      const session = (await supabase.auth.getSession()).data.session;
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({
-          email: selectedCandidate.email,
-          password: password,
-          full_name: selectedCandidate.name,
-          designation: selectedCandidate.role,
-          gross_salary: salary,
-          employee_id: empId
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.status !== 200 || data.error) {
-        const errMsg = data.error || 'Failed to create employee account.';
-        showToast(`Error: ${errMsg}`, "info");
-        return;
-      }
-
-      showToast(`Onboarding setup complete! Employee account created for ${selectedCandidate.name}`, "success");
-      
-      // Refresh the employee list to show the newly created employee
-      await fetchAllEmployees();
-    } catch (err: any) {
-      console.error("Error invoking create-employee function:", err);
-      showToast(`Failed to create employee: ${err.message}`, "info");
-    }
+    // handleSaveSetup is now an alias — actual creation happens in confirmSelection
+    showToast("Employee account is already being created via the Select flow. Use the 'Select' button in the pipeline.", "info");
   };
+
 
   const handleFileView = (fileName: string) => {
     if (!fileName) return;
@@ -1110,13 +1071,14 @@ const HiringOnboarding = () => {
                           );
                         });
                       })()}
+
                     </tbody>
                   </table>
                 </div>
               </CardContent>
             </Card>
           </div>
-       )}
+        )}
     </div>
   );
 };

@@ -10,7 +10,7 @@ import { Layout, Users, Calendar, Clock, DollarSign, Star, TrendingUp, Lock } fr
 
 const Performance = () => {
     const { profile } = useAuth();
-    const isAdmin = profile?.role === 'admin';
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
     const navigate = useNavigate();
     
     // Sub-tabs for "Company Performance"

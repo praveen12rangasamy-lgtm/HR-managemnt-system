@@ -8,6 +8,8 @@ import SkillsLearning from './pages/home/SkillsLearning';
 import Updates from './pages/home/Updates';
 import Settings from './pages/home/Settings';
 import CalendarPage from './pages/home/Calendar';
+import AdminManagement from './pages/home/AdminManagement';
+import EmployeeManagement from './pages/home/EmployeeManagement';
 
 // My Space
 import Profile from './pages/myspace/Profile';
@@ -88,6 +90,18 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="settings" element={<Settings />} />
+            
+            {/* Super Admin Features */}
+            <Route path="admins" element={
+              <ProtectedRoute requireSuperAdmin>
+                <AdminManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="employees" element={
+              <ProtectedRoute requireSuperAdmin>
+                <EmployeeManagement />
+              </ProtectedRoute>
+            } />
             
             {/* My Space Group */}
             <Route path="myspace">

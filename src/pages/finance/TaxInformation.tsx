@@ -23,7 +23,7 @@ interface TaxDeclaration {
 
 const TaxInformation = () => {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
   const [declarations, setDeclarations] = useState<TaxDeclaration[]>([]);
   const [myDeclaration, setMyDeclaration] = useState<TaxDeclaration | null>(null);
 

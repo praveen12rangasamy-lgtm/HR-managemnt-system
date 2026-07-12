@@ -93,7 +93,7 @@ const TreeNodeWrapper = ({ node, selectedNode, onSelect }: { node: Employee, sel
 
 const RoleHierarchy = () => {
   const { profile, user } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
   const [treeData, setTreeData] = useState<Employee>(hierarchyData);
   const [selectedNode, setSelectedNode] = useState<Employee | null>(null);
   const [isEditing, setIsEditing] = useState(false);

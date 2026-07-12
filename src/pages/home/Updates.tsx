@@ -47,7 +47,13 @@ const Updates = () => {
       setJobs(savedJobs ? JSON.parse(savedJobs) : defaultJobs);
       
       const notifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
-      setAnnouncements(notifications);
+      const filtered = notifications.filter((n: any) => {
+        if (profile?.role === 'employee') {
+          return !n.visibleTo || n.visibleTo === 'all';
+        }
+        return true;
+      });
+      setAnnouncements(filtered);
     }
   }, [profile, user]);
 

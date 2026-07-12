@@ -1387,6 +1387,10 @@
 .landing-body .login-option .opt-label { font-family: 'Clash Display', sans-serif; font-size: 0.95rem; font-weight: 600; margin-bottom: 3px; }
 .landing-body .login-option .opt-sub { font-size: 0.72rem; color: var(--muted); }
 
+.landing-body .login-option-employee {
+  /* Aligns side-by-side with Admin */
+}
+
 /* Scroll animations */
 .landing-body .reveal {
   opacity: 0;

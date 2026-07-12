@@ -20,7 +20,7 @@ interface CourseAssigned {
 
 const SkillsLearning = () => {
   const { profile, user } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
   const [courses, setCourses] = useState<CourseAssigned[]>([]);
   const [courseInput, setCourseInput] = useState('');
   const [courseLinkInput, setCourseLinkInput] = useState('');

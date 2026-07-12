@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, User, DollarSign, Monitor, TrendingUp, Calendar, Settings, LogOut } from 'lucide-react';
+import { Home, User, DollarSign, Monitor, TrendingUp, Calendar, Settings, LogOut, Users, UserPlus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
@@ -11,13 +11,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isTablet }) => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const isAdmin = profile?.role === 'admin';
+  const isSuperAdmin = profile?.role === 'superadmin';
 
   const navItems = [
     { name: 'Home', icon: Home, path: '/dashboard' },
     { name: 'My Space', icon: User, path: '/dashboard/myspace' },
     { name: 'Finance', icon: DollarSign, path: '/dashboard/finance' },
     { name: 'Assets', icon: Monitor, path: '/dashboard/assets' },
-    ...(isAdmin ? [{ name: 'Performance', icon: TrendingUp, path: '/dashboard/performance' }] : []),
+    ...((isAdmin || isSuperAdmin) ? [{ name: 'Performance', icon: TrendingUp, path: '/dashboard/performance' }] : []),
     { name: 'Calendar', icon: Calendar, path: '/dashboard/calendar' },
     { name: 'Settings', icon: Settings, path: '/dashboard/settings' }
   ];

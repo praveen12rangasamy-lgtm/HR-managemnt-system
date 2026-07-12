@@ -6,7 +6,7 @@ import { Search, DollarSign, CheckCircle } from 'lucide-react';
 
 const Loans = () => {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
   const [loans, setLoans] = useState<any[]>([]);
   const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
 

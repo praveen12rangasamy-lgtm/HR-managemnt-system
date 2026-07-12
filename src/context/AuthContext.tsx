@@ -49,35 +49,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = async (currentUser: User) => {
     setLoading(true);
 
-    // Primary Admin bypass: ensure they always get the admin role locally
-    const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
-    if (currentUser.email && primaryAdmins.includes(currentUser.email.trim().toLowerCase())) {
-      const adminProfile = {
+    // Super Admin bypass
+    const superAdmins = ['superadmin@vyarahr.com', 'superadmin@gmail.com', 'praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+    if (currentUser.email && superAdmins.includes(currentUser.email.trim().toLowerCase())) {
+      const superProfile = {
         id: currentUser.id,
-        full_name: currentUser.user_metadata?.full_name || 'Admin',
+        full_name: currentUser.user_metadata?.full_name || 'Super Admin',
         email: currentUser.email || '',
-        role: 'admin',
-        designation: 'HR Administrator',
-        department: 'HR'
+        role: 'superadmin',
+        designation: 'Super Administrator',
+        department: 'Management'
       };
-      setProfile(adminProfile);
+      setProfile(superProfile);
       setLoading(false);
       
-      // Try to save/upsert to DB in the background, but don't block login if there's a duplicate or constraint error
+      // Use onConflict:'email' so if a row with this email already exists (possibly with a
+      // different id from a previous session), it updates that row's id to match the current
+      // auth.uid(). This keeps auth.uid() == profiles.id in sync for RLS to work correctly.
       supabase
         .from('profiles')
-        .upsert(adminProfile)
+        .upsert(superProfile, { onConflict: 'email' })
         .then(({ error }) => {
-          if (error) console.warn('Background admin profile update note:', error.message);
+          if (error) console.warn('Background superadmin profile sync note:', error.message);
         });
       return;
     }
-
-    console.log('DEBUG [AuthContext] Current User:', {
-      id: currentUser.id,
-      email: currentUser.email,
-      metadata: currentUser.user_metadata
-    });
 
     const { data, error } = await supabase
       .from('profiles')
@@ -85,21 +81,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .eq('id', currentUser.id)
       .single();
     
-    console.log('DEBUG [AuthContext] Profile Fetch Result:', { data, error });
-    
     if (error && error.code === 'PGRST116') {
       // Profile not found! Auto-create one for manually created user (Admin)
       const metadataRole = currentUser.user_metadata?.role;
-      const role = metadataRole === 'employee' ? 'employee' : 'admin';
-      console.log('DEBUG [AuthContext] Profile not found, auto-creating with role:', role);
+      const role = metadataRole === 'superadmin' ? 'superadmin' : (metadataRole === 'employee' ? 'employee' : 'admin');
       
       const newProfile = {
         id: currentUser.id,
         full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Admin',
         email: currentUser.email || '',
         role: role,
-        designation: role === 'admin' ? 'HR Administrator' : 'Employee',
-        department: 'HR'
+        designation: role === 'superadmin' ? 'Super Administrator' : (role === 'admin' ? 'HR Administrator' : 'Employee'),
+        department: role === 'superadmin' ? 'Management' : 'HR'
       };
 
       const { data: insertedData, error: insertError } = await supabase

@@ -9,7 +9,7 @@ import { getScopedKey } from '../../utils/tenantHelper';
 
 const Settings = () => {
   const { profile, user } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
   const [isResetting, setIsResetting] = useState(false);
   
   const handleSystemReset = async () => {

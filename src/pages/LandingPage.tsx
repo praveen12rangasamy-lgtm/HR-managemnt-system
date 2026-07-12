@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LandingPage.css';
-import { supabase } from '../lib/supabase';
+import { supabase, masterSupabase, switchTenant, resetTenant, DEFAULT_URL, DEFAULT_KEY } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendEmail } from '../lib/resend';
 import { Search, ChevronDown } from 'lucide-react';
@@ -46,11 +46,31 @@ const LandingPage: React.FC = () => {
   
   // Auth states
   const [email, setEmail] = useState('');
+  const [adminEmployeeId, setAdminEmployeeId] = useState('');
   const [employeeEmail, setEmployeeEmail] = useState('');
+  const [superEmail, setSuperEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Tenant / Company states
+  const [companyInputSlug, setCompanyInputSlug] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState<{name: string, slug: string} | null>(null);
+
+  // Load cached tenant details on mount
+  useEffect(() => {
+    const cachedSlug = localStorage.getItem('selected_tenant_slug');
+    const cachedName = localStorage.getItem('selected_tenant_name');
+    const cachedUrl = localStorage.getItem('selected_tenant_url');
+    if (cachedSlug && cachedName) {
+      setSelectedCompany({ name: cachedName, slug: cachedSlug });
+    }
+    // Always re-apply the correct key for VyaraHR in case a stale key was cached
+    if (cachedUrl === DEFAULT_URL) {
+      localStorage.setItem('selected_tenant_key', DEFAULT_KEY);
+    }
+  }, []);
 
   // Signup form states
   const [signupData, setSignupData] = useState({
@@ -114,7 +134,11 @@ const LandingPage: React.FC = () => {
   }, []);
 
   const openModal = (id: string) => {
-    setActiveModal(id);
+    if (id === 'selectorModal' && !selectedCompany) {
+      setActiveModal('companySlugModal');
+    } else {
+      setActiveModal(id);
+    }
     setError(null);
     document.body.style.overflow = 'hidden';
   };
@@ -124,51 +148,165 @@ const LandingPage: React.FC = () => {
     document.body.style.overflow = '';
   };
 
+  const handleCompanySlugSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const slug = companyInputSlug.trim().toLowerCase();
+    if (!slug) {
+      setError('Please enter a company code.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Query the Master Router for the tenant connection details
+      const { data, error: lookupError } = await masterSupabase
+        .from('tenant_connections')
+        .select('*')
+        .eq('company_slug', slug)
+        .maybeSingle();
+
+      if (lookupError) {
+        console.error('Master Router lookup error:', lookupError);
+        setError('Connection error. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (!data) {
+        setError('Invalid company code. Please check and try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Use the hardcoded correct key for known projects (guards against stale DB entries).
+      // For any future new tenant whose URL is not DEFAULT_URL, the DB key is used directly.
+      const tenantKey = data.supabase_url === DEFAULT_URL
+        ? DEFAULT_KEY
+        : data.supabase_anon_key;
+
+      // Switch active tenant project at runtime
+      switchTenant(data.supabase_url, tenantKey);
+
+      // Save connection details locally
+      localStorage.setItem('selected_tenant_slug', data.company_slug);
+      localStorage.setItem('selected_tenant_name', data.company_name);
+
+      // Update state
+      setSelectedCompany({ name: data.company_name, slug: data.company_slug });
+
+      // Proceed to the role selector modal
+      setActiveModal('selectorModal');
+    } catch (err: any) {
+      console.error('Tenant selection error:', err);
+      setError(err.message || 'An error occurred during company verification.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      // Enforce strict Supabase Auth
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
-      if (authError) {
-        setError(authError.message);
+      const inputId = adminEmployeeId.trim();
+      if (!inputId) {
+        setError('Please enter your Admin Employee ID or Email.');
         setLoading(false);
         return;
       }
 
-      // Fetch profile from database to verify role
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user?.id)
-        .single();
+      let targetEmail = '';
+      const superAdmins = ['superadmin@vyarahr.com', 'superadmin@gmail.com', 'praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
 
-      if (profileError || !profile || profile.role !== 'admin') {
-        // If the profile exists and is NOT admin, deny access.
-        // If it doesn't exist yet, we allow login since AuthContext fetchProfile will auto-create it.
-        if (profile && profile.role !== 'admin') {
-          await supabase.auth.signOut();
-          setError('Access denied. This account is an employee, please use the Employee Portal.');
+      if (inputId.includes('@')) {
+        const emailToCheck = inputId.toLowerCase();
+        if (superAdmins.includes(emailToCheck)) {
+          targetEmail = emailToCheck;
+        } else {
+          // Look up the admin's profile from email
+          const { data: profile, error: lookupError } = await supabase
+            .from('profiles')
+            .select('email, role')
+            .eq('email', emailToCheck)
+            .maybeSingle();
+
+          if (lookupError) {
+            setError('Database error while looking up administrator email.');
+            setLoading(false);
+            return;
+          }
+
+          if (!profile) {
+            setError('No administrator account found with this email.');
+            setLoading(false);
+            return;
+          }
+
+          if (profile.role !== 'admin' && profile.role !== 'superadmin') {
+            setError('This email does not belong to an administrator account.');
+            setLoading(false);
+            return;
+          }
+
+          targetEmail = profile.email;
+        }
+      } else {
+        // Look up the admin's email from their Employee ID in the database
+        const { data: profile, error: lookupError } = await supabase
+          .from('profiles')
+          .select('email, role')
+          .eq('employee_id', inputId)
+          .maybeSingle();
+
+        if (lookupError) {
+          setError('Database error while looking up Employee ID.');
           setLoading(false);
           return;
         }
+
+        if (!profile) {
+          setError('No administrator account found with this Employee ID.');
+          setLoading(false);
+          return;
+        }
+
+        if (profile.role !== 'admin' && profile.role !== 'superadmin') {
+          setError('This Employee ID does not belong to an administrator account.');
+          setLoading(false);
+          return;
+        }
+
+        targetEmail = profile.email;
+      }
+
+      // Sign in via Supabase Auth using the resolved email
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: targetEmail,
+        password,
+      });
+
+      if (authError) {
+        setError(authError.message || 'Invalid credentials. Please try again.');
+        setLoading(false);
+        return;
       }
 
       navigate('/dashboard');
       closeModals();
     } catch (err: any) {
-      console.error('Login system error:', err);
+      console.error('Admin login system error:', err);
       setError(err.message || 'An error occurred during authentication.');
     } finally {
       setLoading(false);
     }
   };
+
+
 
   const handleEmployeeLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,63 +316,48 @@ const LandingPage: React.FC = () => {
     try {
       let targetEmail = employeeEmail.trim();
 
-      // 1. Try to find the email in localStorage (ideal for local testing) across all tenant-scoped keys
-      let foundLocal: any = null;
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('hr_employee_credentials')) {
-          try {
-            const localCreds = JSON.parse(localStorage.getItem(key) || '[]');
-            const found = localCreds.find((c: any) => c.employeeId === targetEmail);
-            if (found) {
-              foundLocal = found;
-              break;
-            }
-          } catch (e) {
-            console.error('Error parsing scoped credentials:', e);
-          }
-        }
-      }
-
-      if (foundLocal && foundLocal.email) {
-        targetEmail = foundLocal.email;
-      } else {
-        // 2. Query database to resolve Employee ID to Email (fallback)
+      // Resolve Employee ID to email via Supabase
+      if (!targetEmail.includes('@')) {
         const { data: dbProfile, error: dbError } = await supabase
           .from('profiles')
-          .select('email')
+          .select('email, role')
           .eq('employee_id', targetEmail)
           .maybeSingle();
 
         if (dbError) {
-          console.error('Database query error:', dbError);
+          setError('Database error while looking up Employee ID.');
+          setLoading(false);
+          return;
         }
 
-        if (dbProfile?.email) {
-          targetEmail = dbProfile.email;
-        } else {
-          // If the targetEmail doesn't contain '@', then it's an employee ID that wasn't found.
-          if (!targetEmail.includes('@')) {
-            setError('No employee account found with this ID.');
-            setLoading(false);
-            return;
-          }
+        if (!dbProfile) {
+          setError('No employee account found with this ID. Please contact your administrator.');
+          setLoading(false);
+          return;
         }
+
+        if (dbProfile.role !== 'employee') {
+          setError('This ID does not belong to an employee account. Please use the Admin Login.');
+          setLoading(false);
+          return;
+        }
+
+        targetEmail = dbProfile.email;
       }
 
-      // Perform strict Supabase Auth sign-in
+      // Sign in with resolved email
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: targetEmail,
         password,
       });
 
       if (authError) {
-        setError('Invalid credentials or authentication failed.');
+        setError('Invalid credentials. Please check your Employee ID and password.');
         setLoading(false);
         return;
       }
 
-      // Verify that the logged in user is actually an employee
+      // Verify role in DB
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
@@ -264,6 +387,7 @@ const LandingPage: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -673,6 +797,37 @@ const LandingPage: React.FC = () => {
         </div>
       </footer>
 
+      {/* ===== COMPANY SLUG MODAL ===== */}
+      <div className={`modal-overlay ${activeModal === 'companySlugModal' ? 'open' : ''}`} onClick={(e) => e.target === e.currentTarget && closeModals()}>
+        <div className="modal">
+          <button className="modal-close" onClick={closeModals}>✕</button>
+          <div className="modal-logo">
+            <img src="/logo.png" alt="VyaraHR" />
+          </div>
+          <h2>Enter Company Code</h2>
+          <p className="modal-subtitle">Connect to your company's dedicated portal</p>
+          
+          <form onSubmit={handleCompanySlugSubmit}>
+            {error && <div className="error-message">{error}</div>}
+            <div className="form-group">
+              <label className="form-label">Company Code</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="e.g. vyara, marabanu" 
+                value={companyInputSlug}
+                onChange={(e) => setCompanyInputSlug(e.target.value)}
+                required
+                autoComplete="off"
+              />
+            </div>
+            <button className="modal-btn" type="submit" disabled={loading}>
+              {loading ? 'Verifying...' : 'Next →'}
+            </button>
+          </form>
+        </div>
+      </div>
+
       {/* ===== LOGIN SELECTOR MODAL ===== */}
       <div className={`modal-overlay ${activeModal === 'selectorModal' ? 'open' : ''}`} onClick={(e) => e.target === e.currentTarget && closeModals()}>
         <div className="modal">
@@ -680,6 +835,38 @@ const LandingPage: React.FC = () => {
           <div className="modal-logo">
             <img src="/logo.png" alt="VyaraHR" />
           </div>
+          
+          {selectedCompany && (
+            <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginBottom: '16px' }}>
+              <div style={{
+                backgroundColor: 'var(--brand-teal-light, #f0fdfa)',
+                color: 'var(--brand-teal, #0d9488)',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                Connected to: {selectedCompany.name}
+                <a href="#" onClick={(e) => {
+                  e.preventDefault();
+                  resetTenant();
+                  setSelectedCompany(null);
+                  setCompanyInputSlug('');
+                  setActiveModal('companySlugModal');
+                }} style={{
+                  color: '#ff5900',
+                  textDecoration: 'underline',
+                  marginLeft: '4px'
+                }}>
+                  Change
+                </a>
+              </div>
+            </div>
+          )}
+
           <h2 className="modal-welcome-title">Welcome Back</h2>
           <p className="modal-subtitle">Select your account type to continue</p>
           <div className="login-selector">
@@ -687,7 +874,7 @@ const LandingPage: React.FC = () => {
               <div className="opt-label">Admin</div>
               <div className="opt-sub">Company administrator access</div>
             </div>
-            <div className="login-option" onClick={() => openModal('employeeModal')}>
+            <div className="login-option login-option-employee" onClick={() => openModal('employeeModal')}>
               <div className="opt-label">Employee</div>
               <div className="opt-sub">Personal employee portal</div>
             </div>
@@ -704,20 +891,22 @@ const LandingPage: React.FC = () => {
           </div>
           <div className="modal-role-badge admin">Admin Login</div>
           <h2>Admin Portal</h2>
-          <p className="modal-subtitle">Sign in with your administrator credentials</p>
+          <p className="modal-subtitle">Sign in with your Admin Employee ID or Email and password</p>
           
           <form onSubmit={handleAdminLogin}>
             {error && <div className="error-message error-msg-admin">{error}</div>}
             <div className="form-group">
-              <label className="form-label">Company Email</label>
+              <label className="form-label">Admin Employee ID or Email</label>
               <input 
-                type="email" 
+                type="text" 
                 className="form-input" 
-                placeholder="admin@yourcompany.com" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. ADM-2026-001 or admin@vyarahr.com" 
+                value={adminEmployeeId}
+                onChange={(e) => setAdminEmployeeId(e.target.value)}
                 required
+                autoComplete="off"
               />
+
             </div>
             <div className="form-group">
               <label className="form-label">Password</label>

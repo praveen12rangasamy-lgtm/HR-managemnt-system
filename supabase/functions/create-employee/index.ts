@@ -34,11 +34,18 @@ serve(async (req: Request) => {
       })
     }
 
-    // 2. Fetch the caller's profile to verify they are an admin
+    // 2. Fetch the caller's profile to verify they are an admin or superadmin
     let isAdmin = false;
+    let isSuperAdmin = false;
     const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
-    if (user.email && primaryAdmins.includes(user.email.trim().toLowerCase())) {
+    const superAdmins = ['superadmin@vyarahr.com', 'superadmin@gmail.com'];
+
+    if (user.email && superAdmins.includes(user.email.trim().toLowerCase())) {
+      isSuperAdmin = true;
       isAdmin = true;
+    } else if (user.email && primaryAdmins.includes(user.email.trim().toLowerCase())) {
+      isAdmin = true;
+      isSuperAdmin = true;
     } else {
       const { data: callerProfile, error: profileErr } = await supabaseClient
         .from('profiles')
@@ -46,8 +53,13 @@ serve(async (req: Request) => {
         .eq('id', user.id)
         .single();
       
-      if (!profileErr && callerProfile?.role === 'admin') {
-        isAdmin = true;
+      if (!profileErr) {
+        if (callerProfile?.role === 'superadmin') {
+          isSuperAdmin = true;
+          isAdmin = true;
+        } else if (callerProfile?.role === 'admin') {
+          isAdmin = true;
+        }
       }
     }
 
@@ -60,7 +72,15 @@ serve(async (req: Request) => {
 
     // 3. Parse request payload
     const payload = await req.json()
-    const { action, email, password, full_name, designation, gross_salary, employee_id } = payload
+    const { action, email, password, full_name, designation, gross_salary, employee_id, role } = payload
+    const targetRole = role === 'admin' ? 'admin' : 'employee';
+
+    if (targetRole === 'admin' && !isSuperAdmin) {
+      return new Response(JSON.stringify({ error: 'Forbidden: Only Super Admin can create Admin accounts' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
@@ -163,7 +183,7 @@ serve(async (req: Request) => {
         email,
         password,
         email_confirm: true,
-        user_metadata: { role: 'employee' }
+        user_metadata: { role: targetRole }
       });
 
       if (createErr || !newUser?.user) {
@@ -176,6 +196,7 @@ serve(async (req: Request) => {
     }
 
     // 5. Upsert the profile into the public.profiles table
+    // gross_salary from onboarding is saved here so payroll picks it up automatically
     const { error: upsertErr } = await supabaseAdmin
       .from('profiles')
       .upsert({
@@ -183,11 +204,12 @@ serve(async (req: Request) => {
         employee_id,
         full_name,
         email,
-        role: 'employee',
-        designation: designation || 'Employee',
-        department: 'Unassigned',
+        role: targetRole,
+        designation: designation || (targetRole === 'admin' ? 'HR Administrator' : 'Employee'),
+        department: targetRole === 'admin' ? 'HR' : 'Unassigned',
         hired_by: user.email,
-        password: password
+        password: password,
+        gross_salary: gross_salary ? Number(gross_salary) : 0
       }, { onConflict: 'id' });
 
     if (upsertErr) {

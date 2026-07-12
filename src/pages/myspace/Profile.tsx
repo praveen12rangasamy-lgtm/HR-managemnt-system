@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const Profile = () => {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
 
   return (
     <div className="space-y-6 max-w-5xl">

@@ -41,7 +41,7 @@ interface CalendarEvent {
 
 const CalendarPage: React.FC = () => {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
 
   // State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -163,7 +163,7 @@ const CalendarPage: React.FC = () => {
         return;
       }
       if (data) {
-        const adminEmail = (profile?.role === 'admin' ? profile?.email : profile?.hired_by)?.trim().toLowerCase() || '';
+        const adminEmail = (profile?.role === 'admin' || profile?.role === 'superadmin' ? profile?.email : profile?.hired_by)?.trim().toLowerCase() || '';
         const mapped: CalendarEvent[] = data
           .filter((d: any) => !d.is_custom || (adminEmail && d.id.startsWith(`custom-event-${adminEmail}-`)))
           .map((d: any) => ({
@@ -269,7 +269,7 @@ const CalendarPage: React.FC = () => {
     e.preventDefault();
     if (!formData.title || !formData.category || !formData.date) return;
 
-    const adminEmail = (profile?.role === 'admin' ? profile?.email : profile?.hired_by)?.trim().toLowerCase() || 'default';
+    const adminEmail = (profile?.role === 'admin' || profile?.role === 'superadmin' ? profile?.email : profile?.hired_by)?.trim().toLowerCase() || 'default';
     const newEvent = {
       id: `custom-event-${adminEmail}-${Date.now()}`,
       title: formData.title,

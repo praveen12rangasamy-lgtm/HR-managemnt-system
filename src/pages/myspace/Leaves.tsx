@@ -9,7 +9,7 @@ import { getScopedKey } from '../../utils/tenantHelper';
 
 const Leaves = () => {
   const { profile, user } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<any[]>([]);
@@ -26,6 +26,8 @@ const Leaves = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [upcomingHolidays, setUpcomingHolidays] = useState<any[]>([]);
   const [holidaysLoading, setHolidaysLoading] = useState(true);
+  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
+  const [rejectionInput, setRejectionInput] = useState('');
 
   // Leave balance: total allocation minus approved days used
   const LEAVE_ALLOCATIONS: Record<string, { label: string; total: number; color: string; barColor: string }> = {
@@ -240,7 +242,7 @@ const Leaves = () => {
     setTimeout(() => setToast(''), 3000);
   };
 
-  const handleAction = async (id: string, newStatus: 'approved' | 'rejected') => {
+  const handleAction = async (id: string, newStatus: 'approved' | 'rejected', rejectionReason?: string) => {
     setActionLoading(true);
     
     const request = adminRequests.find(r => r.id === id);
@@ -248,16 +250,24 @@ const Leaves = () => {
     if (request?.is_mock) {
       const mockLeavesKey = getScopedKey('hr_leave_requests', profile, user);
       const mockLeaves = JSON.parse(localStorage.getItem(mockLeavesKey) || '[]');
-      const updated = mockLeaves.map((l: any) => l.id === id ? { ...l, status: newStatus } : l);
+      const updated = mockLeaves.map((l: any) => l.id === id ? { 
+        ...l, 
+        status: newStatus,
+        rejection_reason: newStatus === 'rejected' ? rejectionReason : null
+      } : l);
       localStorage.setItem(mockLeavesKey, JSON.stringify(updated));
       
       setToast(`✓ Mock request ${newStatus} successfully`);
       await fetchAdminRequests();
       setSelectedRequest(null);
     } else {
+      const updateData: any = { status: newStatus };
+      if (newStatus === 'rejected') {
+        updateData.rejection_reason = rejectionReason || '';
+      }
       const { error } = await supabase
         .from('leave_requests')
-        .update({ status: newStatus })
+        .update(updateData)
         .eq('id', id);
 
       if (error) {
@@ -327,9 +337,16 @@ const Leaves = () => {
                       <td className="px-6 py-4 text-center font-bold text-brand-navy">{days}</td>
                       <td className="px-6 py-4 text-xs text-gray-500">{req.start_date} → {req.end_date}</td>
                       <td className="px-6 py-4">
-                        <Badge variant={req.status === 'approved' ? 'green' : req.status === 'rejected' ? 'red' : 'neutral'}>
-                          {req.status}
-                        </Badge>
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge variant={req.status === 'approved' ? 'green' : req.status === 'rejected' ? 'red' : 'neutral'}>
+                            {req.status}
+                          </Badge>
+                          {req.status === 'rejected' && req.rejection_reason && (
+                            <span className="text-[11px] text-rose-500 font-medium max-w-[150px] truncate block mt-0.5" title={req.rejection_reason}>
+                              Reason: {req.rejection_reason}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-3 transition-all">
@@ -347,7 +364,7 @@ const Leaves = () => {
                              size="sm" 
                              variant="ghost" 
                              className="h-10 w-10 p-0 rounded-full hover:bg-red-50 hover:text-red-600 transition-all border border-transparent hover:border-red-100" 
-                             onClick={(e) => { e.stopPropagation(); handleAction(req.id, 'rejected'); }}
+                             onClick={(e) => { e.stopPropagation(); setRejectingRequestId(req.id); }}
                              disabled={actionLoading || req.status !== 'pending'}
                              title="Reject"
                            >
@@ -400,6 +417,11 @@ const Leaves = () => {
                 <div className="bg-gray-50 p-4 rounded-xl border italic text-gray-700 text-sm">
                   "{selectedRequest?.reason || 'No reason provided.'}"
                 </div>
+                {selectedRequest?.status === 'rejected' && selectedRequest?.rejection_reason && (
+                  <div className="bg-red-50 p-4 rounded-xl border border-red-100 text-red-700 text-sm">
+                    <span className="font-bold">Rejection Reason:</span> "{selectedRequest.rejection_reason}"
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4 pt-2">
                    <Button 
                      className="bg-emerald-500 hover:bg-emerald-600 w-full gap-2 border-none h-11 shadow-md shadow-emerald-100" 
@@ -411,7 +433,7 @@ const Leaves = () => {
                    <Button 
                      variant="outline" 
                      className="border-red-500 text-red-500 hover:bg-red-50 w-full gap-2 h-11" 
-                     onClick={() => handleAction(selectedRequest.id, 'rejected')}
+                     onClick={() => setRejectingRequestId(selectedRequest.id)}
                      disabled={actionLoading || selectedRequest?.status !== 'pending'}
                    >
                      <span className="font-bold">✕</span> Reject Request
@@ -420,6 +442,52 @@ const Leaves = () => {
                 {selectedRequest?.status !== 'pending' && (
                   <p className="text-center text-xs text-gray-400">This request has already been {selectedRequest?.status}.</p>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {rejectingRequestId && (
+          <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+            <Card className="w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+              <CardHeader className="border-b">
+                <CardTitle className="text-lg text-brand-navy font-bold">Reason for Rejection</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Please provide a reason for rejecting this leave request:
+                  </label>
+                  <textarea
+                    rows={4}
+                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal text-sm resize-none"
+                    placeholder="Enter reason..."
+                    value={rejectionInput}
+                    onChange={(e) => setRejectionInput(e.target.value)}
+                  ></textarea>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setRejectingRequestId(null);
+                      setRejectionInput('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="bg-red-500 hover:bg-red-600 text-white"
+                    disabled={!rejectionInput.trim() || actionLoading}
+                    onClick={() => {
+                      handleAction(rejectingRequestId, 'rejected', rejectionInput.trim());
+                      setRejectingRequestId(null);
+                      setRejectionInput('');
+                    }}
+                  >
+                    Submit Rejection
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -507,9 +575,16 @@ const Leaves = () => {
                             <td className="px-4 py-3 text-center font-bold text-brand-navy">{duration}</td>
                             <td className="px-4 py-3 text-gray-500 max-w-xs truncate" title={req.reason}>{req.reason || '—'}</td>
                             <td className="px-4 py-3">
-                              <Badge variant={req.status === 'approved' ? 'green' : (req.status === 'rejected' ? 'red' : 'neutral')}>
-                                {req.status}
-                              </Badge>
+                              <div className="flex flex-col items-start gap-1">
+                                <Badge variant={req.status === 'approved' ? 'green' : (req.status === 'rejected' ? 'red' : 'neutral')}>
+                                  {req.status}
+                                </Badge>
+                                {req.status === 'rejected' && req.rejection_reason && (
+                                  <span className="text-[11px] text-rose-500 font-medium max-w-xs block mt-0.5" title={req.rejection_reason}>
+                                    Reason: {req.rejection_reason}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );

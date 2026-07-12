@@ -40,7 +40,7 @@ const Attendance = () => {
     const mm = String(now.getMinutes()).padStart(2, '0');
     return { date: now.toISOString().split('T')[0], inTime: `${hh}:${mm}`, outTime: '' };
   });
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
 
   // Admin: split into pending approvals and approved records
   const [adminLogs, setAdminLogs] = useState<AttendanceLog[]>([]);

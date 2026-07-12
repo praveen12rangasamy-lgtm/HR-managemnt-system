@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import { Home, User, DollarSign, Monitor, TrendingUp, Menu, X } from 'lucide-react';
+import { Home, User, DollarSign, Monitor, TrendingUp, Menu, X, Users, Settings } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const DashboardLayout = () => {
@@ -11,6 +11,7 @@ const DashboardLayout = () => {
   const location = useLocation();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const isSuperAdmin = profile?.role === 'superadmin';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -27,7 +28,7 @@ const DashboardLayout = () => {
     { name: 'My Space', icon: User, path: '/dashboard/myspace' },
     { name: 'Finance', icon: DollarSign, path: '/dashboard/finance' },
     { name: 'Assets', icon: Monitor, path: '/dashboard/assets' },
-    ...(isAdmin ? [{ name: 'Performance', icon: TrendingUp, path: '/dashboard/performance' }] : [])
+    ...((isAdmin || isSuperAdmin) ? [{ name: 'Performance', icon: TrendingUp, path: '/dashboard/performance' }] : [])
   ];
 
   return (

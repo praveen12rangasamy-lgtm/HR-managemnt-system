@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { Users, UserCheck, UserMinus, Send, RefreshCw, Mail, Briefcase, Calendar, Clock, LogOut as OffboardIcon, Layout, Fingerprint, Search, Plus, X, Bell, Pencil, Trash2, Download } from 'lucide-react';
+import { Users, UserCheck, UserMinus, Send, RefreshCw, Mail, Briefcase, Calendar, Clock, LogOut as OffboardIcon, Layout, Fingerprint, Search, Plus, X, Bell, Pencil, Trash2, Download, UserPlus } from 'lucide-react';
 import { getRelativeTime } from '../../lib/timeHelper';
 import { getScopedKey } from '../../utils/tenantHelper';
 
@@ -23,8 +23,10 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [adminSearchTerm, setAdminSearchTerm] = useState('');
+  const [empSearchTerm, setEmpSearchTerm] = useState('');
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
-  const [newUpdate, setNewUpdate] = useState({ title: '', message: '' });
+  const [newUpdate, setNewUpdate] = useState({ title: '', message: '', visibleTo: 'all' });
   const [editingAnnouncement, setEditingAnnouncement] = useState<any | null>(null);
   const [refreshNotifyTrack, setRefreshNotifyTrack] = useState(0);
   const [submission, setSubmission] = useState({
@@ -171,16 +173,17 @@ const Dashboard = () => {
       title: newUpdate.title,
       message: newUpdate.message,
       time: 'Just now',
-      admin_context: profile?.email || 'praveen12rangasamy@gmail.com'
+      admin_context: profile?.email || 'praveen12rangasamy@gmail.com',
+      visibleTo: newUpdate.visibleTo || 'all'
     };
     
     notifications.unshift(notification);
     localStorage.setItem(notificationsKey, JSON.stringify(notifications.slice(0, 15)));
     
-    setNewUpdate({ title: '', message: '' });
+    setNewUpdate({ title: '', message: '', visibleTo: 'all' });
     setShowBroadcastModal(false);
     setRefreshNotifyTrack(prev => prev + 1);
-    alert('Update broadcasted to all employees! ✓');
+    alert(newUpdate.visibleTo === 'admin' ? 'Confidential update posted for Admins only! ✓' : 'Update broadcasted to all employees! ✓');
   };
 
   const handleDeleteAnnouncement = (id: any) => {
@@ -195,11 +198,12 @@ const Dashboard = () => {
     const formData = new FormData(e.target as HTMLFormElement);
     const title = formData.get('editTitle') as string;
     const message = formData.get('editMessage') as string;
+    const visibleTo = formData.get('editVisibleTo') as string;
     
     const notificationsKey = getScopedKey('hr_notifications', profile, user);
     const allNotifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
     const updated = allNotifications.map((a: any) => 
-      a.id === editingAnnouncement.id ? { ...a, title, message } : a
+      a.id === editingAnnouncement.id ? { ...a, title, message, visibleTo } : a
     );
     
     localStorage.setItem(notificationsKey, JSON.stringify(updated));
@@ -211,7 +215,7 @@ const Dashboard = () => {
     // Immediate fetch on mount to ensure no empty screen
     fetchAllData();
     
-    if (profile?.role === 'admin') {
+    if (profile?.role === 'admin' || profile?.role === 'superadmin') {
       const interval = setInterval(fetchAllData, 10000);
       return () => clearInterval(interval);
     }
@@ -250,57 +254,42 @@ const Dashboard = () => {
     const fetchProfiles = async () => {
       try {
         setRefreshing(true);
+        if (profile?.role === 'superadmin') {
+          const { data: dbData, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .order('full_name', { ascending: true });
+          
+          if (error) throw error;
+          setProfiles(dbData || []);
+          setRefreshing(false);
+          return;
+        }
+
         // 1. Get database profiles
         const { data: dbData, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('hired_by', profile?.email)
+          .eq('role', 'employee')
           .order('full_name', { ascending: true });
         
         if (error) throw error;
         
-        let dbProfiles = (dbData || []).filter(p => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com');
-
-        // 2. Get local applicants in onboarding pipeline from localStorage using scoped key
-        const applicantsKey = getScopedKey('hr_applicants', profile, user);
-        const localApplicants = JSON.parse(localStorage.getItem(applicantsKey) || '[]');
-        const mockOfficeNames = ['Michael Scott', 'Pam Beesly', 'Jim Halpert', 'Dwight Schrute'];
-        let localOnboarding = localApplicants
-          .filter((a: any) => a.status === 'OfferSent' || a.status === 'OnboardingInProgress')
-          .filter((a: any) => a.name && !mockOfficeNames.includes(a.name))
-          .map((a: any) => ({
-            id: a.db_id || a.id.toString(),
-            employee_id: a.empId || `VYR-2024-00${a.id}`,
-            full_name: a.name,
-            email: a.email,
-            role: 'employee',
-            designation: a.role,
-            department: 'Unassigned',
-            onboarding_status: a.status
-          }));
+        let dbProfiles = dbData || [];
 
         // Filter to exclude fake profiles if logged in as primary admin
         if (profile?.email === 'praveen12rangasamy@gmail.com') {
           const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
           dbProfiles = dbProfiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || ''));
-          localOnboarding = localOnboarding.filter((a: any) => !fakeNames.includes(a.full_name?.toLowerCase() || ''));
         }
 
-        // 3. Unify and deduplicate by employee_id or email or id
-        const unified = [...localOnboarding, ...dbProfiles];
-        const empMap = new Map();
-        unified.forEach(emp => {
-          const key = emp.employee_id || emp.email || emp.id;
-          if (key) empMap.set(key, emp);
-        });
-        
-        const finalProfiles = Array.from(empMap.values());
-        setProfiles(finalProfiles);
+        setProfiles(dbProfiles);
 
         // Update totalEmployees stat dynamically
         setStats(prev => ({
           ...prev,
-          totalEmployees: finalProfiles.length
+          totalEmployees: dbProfiles.length
         }));
       } catch (err) {
         console.error('Error fetching profiles:', err);
@@ -398,6 +387,25 @@ const Dashboard = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       
+      if (profile?.role === 'superadmin') {
+        const { count: totalAdmins } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'admin');
+
+        const { count: totalEmployees } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'employee');
+
+        setStats({
+          totalEmployees: totalEmployees || 0,
+          presentToday: totalAdmins || 0,
+          onLeave: 0
+        });
+        return;
+      }
+      
       // Admin Dashboard should show stats for employees belonging to this admin
       const { data: adminProfiles } = await supabase
         .from('profiles')
@@ -440,7 +448,7 @@ const Dashboard = () => {
     }
   };
 
-  if (profile?.role !== 'admin') {
+  if (profile?.role !== 'admin' && profile?.role !== 'superadmin') {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <header className="space-y-3">
@@ -860,7 +868,9 @@ const Dashboard = () => {
         <Card className="border-l-4 border-l-status-green">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">Present Today</p>
+              <p className="text-sm font-medium text-gray-500">
+                {profile?.role === 'superadmin' ? 'Total Admins' : 'Present Today'}
+              </p>
               <h3 className="text-3xl font-bold mt-2 text-brand-navy">
                 {loading ? '...' : stats.presentToday}
               </h3>
@@ -886,189 +896,399 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
-        <div onClick={() => document.getElementById('company-updates-section')?.scrollIntoView({ behavior: 'smooth' })} className="group cursor-pointer">
-          <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-brand-teal/5 to-white border-l-4 border-l-brand-teal overflow-hidden">
-            <CardContent className="p-6 space-y-4">
-              <div className="w-10 h-10 bg-brand-teal/10 rounded-xl flex items-center justify-center text-brand-teal group-hover:scale-110 transition-transform">
-                <Briefcase size={20} />
+      {profile?.role !== 'superadmin' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
+          <div onClick={() => document.getElementById('company-updates-section')?.scrollIntoView({ behavior: 'smooth' })} className="group cursor-pointer">
+            <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-brand-teal/5 to-white border-l-4 border-l-brand-teal overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="w-10 h-10 bg-brand-teal/10 rounded-xl flex items-center justify-center text-brand-teal group-hover:scale-110 transition-transform">
+                  <Briefcase size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-brand-navy">Company Updates</h3>
+                  <p className="text-xs text-gray-500 mt-1">Post announcements and manage job openings.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Link to="/dashboard/hiring" className="group">
+            <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-blue-50/30 to-white border-l-4 border-l-blue-500 overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+                  <Layout size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-brand-navy">Hiring Pipeline</h3>
+                  <p className="text-xs text-gray-500 mt-1">Manage applicants, screening, and onboarding.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/offboarding" className="group">
+            <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-amber-50/30 to-white border-l-4 border-l-status-amber overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-status-amber group-hover:scale-110 transition-transform">
+                  <OffboardIcon size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-brand-navy">Offboarding</h3>
+                  <p className="text-xs text-gray-500 mt-1">Manage exit processes and asset returns.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      )}
+
+      {profile?.role === 'superadmin' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+          <Link to="/dashboard/admins" className="group">
+            <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-brand-orange/5 to-white border-l-4 border-l-brand-orange overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="w-10 h-10 bg-brand-orange/10 rounded-xl flex items-center justify-center text-brand-orange group-hover:scale-110 transition-transform">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-brand-navy">Admin Management</h3>
+                  <p className="text-xs text-gray-500 mt-1">Provision and delete company admin accounts.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/hiring" className="group">
+            <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-brand-teal/5 to-white border-l-4 border-l-brand-teal overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="w-10 h-10 bg-brand-teal/10 rounded-xl flex items-center justify-center text-brand-teal group-hover:scale-110 transition-transform">
+                  <UserPlus size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-brand-navy">Hiring & Onboarding</h3>
+                  <p className="text-xs text-gray-500 mt-1">Manage applicants, ATS screening, and employee creation.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/employees" className="group">
+            <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-blue-50/30 to-white border-l-4 border-l-blue-500 overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-brand-navy">Employee Management</h3>
+                  <p className="text-xs text-gray-500 mt-1">Assign employees to respective HR admins.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/offboarding" className="group">
+            <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-amber-50/30 to-white border-l-4 border-l-status-amber overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-status-amber group-hover:scale-110 transition-transform">
+                  <OffboardIcon size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-brand-navy">Offboarding</h3>
+                  <p className="text-xs text-gray-500 mt-1">Manage exit processes and asset returns.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      )}
+
+      {profile?.role === 'superadmin' ? (
+        <div className="grid grid-cols-1 gap-6">
+          {/* Box 1: Admins */}
+          <Card className="border-t-4 border-t-brand-orange">
+            <CardHeader className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pb-2">
+              <CardTitle>Admins</CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="relative group w-full sm:w-auto">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-brand-teal transition-colors" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search admins..." 
+                    className="pl-9 pr-4 py-2 border rounded-xl bg-gray-50/50 text-xs outline-none focus:ring-2 focus:ring-brand-teal w-full sm:w-48 transition-all"
+                    value={adminSearchTerm}
+                    onChange={(e) => setAdminSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-brand-navy">Company Updates</h3>
-                <p className="text-xs text-gray-500 mt-1">Post announcements and manage job openings.</p>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-gray-500 uppercase bg-gray-50 rounded-md border-b">
+                    <tr>
+                      <th className="px-4 py-3">Name</th>
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Designation</th>
+                      <th className="px-4 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const filtered = (profiles || []).filter(p => p.role === 'admin').filter(p => {
+                        const searchStr = adminSearchTerm.toLowerCase();
+                        return (p.full_name || '').toLowerCase().includes(searchStr) || 
+                               (p.email || '').toLowerCase().includes(searchStr) || 
+                               (p.employee_id || '').toLowerCase().includes(searchStr);
+                      });
+                      
+                      if (filtered.length === 0) {
+                        return <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400 italic">No admins found</td></tr>;
+                      }
+
+                      return filtered.map((p, i) => (
+                        <tr key={i} className="border-b hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-brand-navy">
+                            {p.full_name || 'N/A'}
+                            <div className="text-[10px] text-gray-400 font-normal">{p.employee_id}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{p.email}</td>
+                          <td className="px-4 py-3 text-gray-500">{p.designation || 'Administrator'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-brand-teal border-brand-teal hover:bg-brand-teal hover:text-white"
+                              onClick={() => {
+                                const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
+                                const sub = (p.employee_id ? allSubmissions[p.employee_id] : null) || allSubmissions[p.id] || null;
+                                setSelectedProfile({ ...p, submission: sub });
+                              }}
+                            >
+                              View Profile
+                            </Button>
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Box 2: Employees */}
+          <Card className="border-t-4 border-t-brand-teal">
+            <CardHeader className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pb-2">
+              <CardTitle>Employees</CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="relative group w-full sm:w-auto">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-brand-teal transition-colors" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search employees..." 
+                    className="pl-9 pr-4 py-2 border rounded-xl bg-gray-50/50 text-xs outline-none focus:ring-2 focus:ring-brand-teal w-full sm:w-48 transition-all"
+                    value={empSearchTerm}
+                    onChange={(e) => setEmpSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-gray-500 uppercase bg-gray-50 rounded-md border-b">
+                    <tr>
+                      <th className="px-4 py-3">Name</th>
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Designation</th>
+                      <th className="px-4 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const filtered = (profiles || []).filter(p => p.role === 'employee').filter(p => {
+                        const searchStr = empSearchTerm.toLowerCase();
+                        return (p.full_name || '').toLowerCase().includes(searchStr) || 
+                               (p.email || '').toLowerCase().includes(searchStr) || 
+                               (p.employee_id || '').toLowerCase().includes(searchStr);
+                      });
+                      
+                      if (filtered.length === 0) {
+                        return <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400 italic">No employees found</td></tr>;
+                      }
+
+                      return filtered.map((p, i) => (
+                        <tr key={i} className="border-b hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-brand-navy">
+                            {p.full_name || 'N/A'}
+                            <div className="text-[10px] text-gray-400 font-normal">{p.employee_id}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{p.email}</td>
+                          <td className="px-4 py-3 text-gray-500">{p.designation || 'Staff'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-brand-teal border-brand-teal hover:bg-brand-teal hover:text-white"
+                              onClick={() => {
+                                const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
+                                const sub = (p.employee_id ? allSubmissions[p.employee_id] : null) || allSubmissions[p.id] || null;
+                                setSelectedProfile({ ...p, submission: sub });
+                              }}
+                            >
+                              View Profile
+                            </Button>
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
         </div>
-
-        <Link to="/dashboard/hiring" className="group">
-          <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-blue-50/30 to-white border-l-4 border-l-blue-500 overflow-hidden">
-            <CardContent className="p-6 space-y-4">
-              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
-                <Layout size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-brand-navy">Hiring Pipeline</h3>
-                <p className="text-xs text-gray-500 mt-1">Manage applicants, screening, and onboarding.</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link to="/dashboard/offboarding" className="group">
-          <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-amber-50/30 to-white border-l-4 border-l-status-amber overflow-hidden">
-            <CardContent className="p-6 space-y-4">
-              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-status-amber group-hover:scale-110 transition-transform">
-                <OffboardIcon size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-brand-navy">Offboarding</h3>
-                <p className="text-xs text-gray-500 mt-1">Manage exit processes and asset returns.</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-
-      <div id="company-updates-section" className="grid grid-cols-1 gap-6">
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pb-2">
-            <CardTitle>Current Employees ({profiles.length})</CardTitle>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={restoreOwnership}
-                className="gap-2 text-status-amber hover:bg-status-amber/5 font-bold border border-status-amber/20 text-xs"
-              >
-                Restore to My Account
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleSync}
-                className="gap-2 text-brand-teal hover:bg-brand-teal/5 font-bold text-xs"
-              >
-                <div className={refreshing ? 'animate-spin' : ''}>
-                  <OffboardIcon size={16} /> 
+      ) : (
+        <div id="company-updates-section" className="grid grid-cols-1 gap-6">
+          <Card>
+            <CardHeader className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pb-2">
+              <CardTitle>Current Employees ({profiles.length})</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={restoreOwnership}
+                  className="gap-2 text-status-amber hover:bg-status-amber/5 font-bold border border-status-amber/20 text-xs"
+                >
+                  Restore to My Account
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleSync}
+                  className="gap-2 text-brand-teal hover:bg-brand-teal/5 font-bold text-xs"
+                >
+                  <div className={refreshing ? 'animate-spin' : ''}>
+                    <OffboardIcon size={16} /> 
+                  </div>
+                  Sync
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleDownloadCSV}
+                  className="gap-2 text-brand-teal hover:bg-brand-teal/5 font-bold text-xs"
+                >
+                  <Download size={16} /> 
+                  Download CSV
+                </Button>
+                <div className="relative group w-full sm:w-auto">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-brand-teal transition-colors" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search name or email..." 
+                    className="pl-9 pr-4 py-2 border rounded-xl bg-gray-50/50 text-xs outline-none focus:ring-2 focus:ring-brand-teal w-full sm:w-64 transition-all"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
-                Sync
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleDownloadCSV}
-                className="gap-2 text-brand-teal hover:bg-brand-teal/5 font-bold text-xs"
-              >
-                <Download size={16} /> 
-                Download CSV
-              </Button>
-              <div className="relative group w-full sm:w-auto">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-brand-teal transition-colors" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Search name or email..." 
-                  className="pl-9 pr-4 py-2 border rounded-xl bg-gray-50/50 text-xs outline-none focus:ring-2 focus:ring-brand-teal w-full sm:w-64 transition-all"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-gray-500 uppercase bg-gray-50 rounded-md border-b">
-                  <tr>
-                    <th className="px-6 py-3">Name</th>
-                    <th className="px-6 py-3 hidden md:table-cell">Email</th>
-                    <th className="px-6 py-3 hidden md:table-cell">Role</th>
-                    <th className="px-6 py-3">Designation</th>
-                    <th className="px-6 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const filtered = (profiles || []).filter(p => {
-                      if (!p) return false;
-                      const searchStr = (searchTerm || '').toLowerCase();
-                      const name = (p.full_name || '').toLowerCase();
-                      const email = (p.email || '').toLowerCase();
-                      const eid = (p.employee_id || p.id || '').toLowerCase();
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-gray-500 uppercase bg-gray-50 rounded-md border-b">
+                    <tr>
+                      <th className="px-6 py-3">Name</th>
+                      <th className="px-6 py-3 hidden md:table-cell">Email</th>
+                      <th className="px-6 py-3 hidden md:table-cell">Role</th>
+                      <th className="px-6 py-3">Designation</th>
+                      <th className="px-6 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const filtered = (profiles || []).filter(p => {
+                        if (!p) return false;
+                        const searchStr = (searchTerm || '').toLowerCase();
+                        const name = (p.full_name || '').toLowerCase();
+                        const email = (p.email || '').toLowerCase();
+                        const eid = (p.employee_id || p.id || '').toLowerCase();
+                        
+                        return name.includes(searchStr) || email.includes(searchStr) || eid.includes(searchStr);
+                      });
                       
-                      return name.includes(searchStr) || email.includes(searchStr) || eid.includes(searchStr);
-                    });
-                    
-                    if (filtered.length === 0) {
-                      return <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 italic">No employees found matching "{searchTerm}"</td></tr>;
-                    }
+                      if (filtered.length === 0) {
+                        return <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 italic">No employees found matching "{searchTerm}"</td></tr>;
+                      }
 
-                    return filtered.map((p, i) => (
-                    <tr key={i} className="border-b hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-brand-navy">
-                        {p.full_name || 'N/A'}
-                        <div className="text-[10px] text-gray-400 font-normal">{p.employee_id}</div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 hidden md:table-cell">
-                        <div className="flex items-center gap-1">
-                          <Mail size={12} /> {p.email}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 hidden md:table-cell">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={p.role === 'admin' ? 'blue' : 'neutral'}>{p.role}</Badge> 
-                          {p.onboarding_status && p.onboarding_status !== 'Completed' && (
-                            <Badge variant="amber">Onboarding</Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500">
-                        {p.designation || 'Staff'}
-                      </td>
-                      <td className="px-6 py-4 text-right flex justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="text-brand-teal border-brand-teal hover:bg-brand-teal hover:text-white"
-                          onClick={() => {
-                            const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
-                            const sub = (p.employee_id ? allSubmissions[p.employee_id] : null) || allSubmissions[p.id] || null;
-                            setSelectedProfile({ ...p, submission: sub });
-                          }}
-                        >
-                          View Profile
-                        </Button>
-                        {profile?.role === 'admin' && (
+                      return filtered.map((p, i) => (
+                      <tr key={i} className="border-b hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-brand-navy">
+                          {p.full_name || 'N/A'}
+                          <div className="text-[10px] text-gray-400 font-normal">{p.employee_id}</div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-500 hidden md:table-cell">
+                          <div className="flex items-center gap-1">
+                            <Mail size={12} /> {p.email}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-500 hidden md:table-cell">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={p.role === 'admin' ? 'blue' : 'neutral'}>{p.role}</Badge> 
+                            {p.onboarding_status && p.onboarding_status !== 'Completed' && (
+                              <Badge variant="amber">Onboarding</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-500">
+                          {p.designation || 'Staff'}
+                        </td>
+                        <td className="px-6 py-4 text-right flex justify-end gap-2">
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="text-brand-orange border-brand-orange hover:bg-brand-orange hover:text-white flex items-center gap-1.5"
+                            className="text-brand-teal border-brand-teal hover:bg-brand-teal hover:text-white"
                             onClick={() => {
-                              setEditingEmployee(p);
-                              setEditFormData({
-                                fullName: p.full_name || '',
-                                designation: p.designation || '',
-                                department: p.department || '',
-                                grossSalary: p.gross_salary || '0',
-                                bankName: p.bank_name || '',
-                                bankAccount: p.bank_account || ''
-                              });
+                              const allSubmissions = JSON.parse(localStorage.getItem('hr_employee_submissions') || '{}');
+                              const sub = (p.employee_id ? allSubmissions[p.employee_id] : null) || allSubmissions[p.id] || null;
+                              setSelectedProfile({ ...p, submission: sub });
                             }}
                           >
-                            <Pencil size={12} /> Edit
+                            View Profile
                           </Button>
-                        )}
-                      </td>
+                          {profile?.role === 'admin' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-brand-orange border-brand-orange hover:bg-brand-orange hover:text-white flex items-center gap-1.5"
+                              onClick={() => {
+                                setEditingEmployee(p);
+                                setEditFormData({
+                                  fullName: p.full_name || '',
+                                  designation: p.designation || '',
+                                  department: p.department || '',
+                                  grossSalary: p.gross_salary || '0',
+                                  bankName: p.bank_name || '',
+                                  bankAccount: p.bank_account || ''
+                                });
+                              }}
+                            >
+                              <Pencil size={12} /> Edit
+                            </Button>
+                          )}
+                        </td>
 
-                    </tr>
-                    ));
-                  })()}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                      </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6">
           <Card>
@@ -1077,7 +1297,7 @@ const Dashboard = () => {
                 <Bell className="text-brand-teal" size={20} />
                 <CardTitle>New Update</CardTitle>
               </div>
-              {profile?.role === 'admin' && (
+              {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
                 <Button 
                   size="sm" 
                   className="bg-brand-teal hover:bg-emerald-600 rounded-full w-8 h-8 p-0 flex items-center justify-center shadow-lg active:scale-95 transition-all"
@@ -1093,7 +1313,15 @@ const Dashboard = () => {
                   const notificationsKey = getScopedKey('hr_notifications', profile, user);
                   const notifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
 
-                  if (notifications.length === 0) {
+                  // Filter notifications based on role
+                  const filtered = notifications.filter((n: any) => {
+                    if (profile?.role === 'employee') {
+                      return !n.visibleTo || n.visibleTo === 'all';
+                    }
+                    return true; // admin and superadmin see everything
+                  });
+
+                  if (filtered.length === 0) {
                     return (
                       <div className="text-center py-12 text-gray-400">
                         <Bell className="mx-auto mb-2 opacity-20" size={48} />
@@ -1101,16 +1329,21 @@ const Dashboard = () => {
                       </div>
                     );
                   }
-                  return notifications.map((n: any) => (
+                  return filtered.map((n: any) => (
                     <div key={n.id} className="flex gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:border-brand-teal/30 hover:bg-brand-teal/5 transition-all group">
                       <div className={`p-3 rounded-lg flex-shrink-0 ${n.type === 'broadcast' ? 'bg-brand-teal/10 text-brand-teal' : 'bg-brand-navy/10 text-brand-navy'}`}>
                         {n.type === 'broadcast' ? <Bell size={20} /> : <Briefcase size={20} />}
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-brand-navy group-hover:text-black transition-colors">{n.title}</h4>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-brand-navy group-hover:text-black transition-colors">{n.title}</h4>
+                            {n.visibleTo === 'admin' && (
+                              <Badge variant="amber" className="text-[9px] px-1.5 py-0.5 font-bold uppercase tracking-wider">Confidential</Badge>
+                            )}
+                          </div>
                           <div className="flex items-center gap-4">
-                            {profile?.role === 'admin' && (
+                            {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
                                <div className="hidden group-hover:flex items-center gap-3 mr-3 border-r pr-4 border-gray-200">
                                  <Button variant="ghost" size="sm" onClick={() => setEditingAnnouncement(n)} className="h-7 text-xs gap-1.5 text-gray-500 hover:text-brand-teal p-1 px-2">
                                    <Pencil size={12} /> Edit
@@ -1166,11 +1399,40 @@ const Dashboard = () => {
                   onChange={(e) => setNewUpdate({ ...newUpdate, message: e.target.value })}
                 />
               </div>
+              
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Visible To</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="visibleTo" 
+                      value="all"
+                      checked={newUpdate.visibleTo === 'all'}
+                      onChange={() => setNewUpdate({ ...newUpdate, visibleTo: 'all' })}
+                      className="accent-brand-teal"
+                    />
+                    Everyone (Admins & Employees)
+                  </label>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="visibleTo" 
+                      value="admin"
+                      checked={newUpdate.visibleTo === 'admin'}
+                      onChange={() => setNewUpdate({ ...newUpdate, visibleTo: 'admin' })}
+                      className="accent-brand-teal"
+                    />
+                    Admins Only (Confidential)
+                  </label>
+                </div>
+              </div>
+
               <Button 
                 className="w-full py-6 text-base font-bold bg-brand-navy hover:bg-black shadow-lg"
                 onClick={postBroadcast}
               >
-                Post Update to All Employees
+                Post Update
               </Button>
             </CardContent>
           </Card>
@@ -1194,6 +1456,19 @@ const Dashboard = () => {
                 <div>
                   <label htmlFor="edit-announce-msg" className="text-xs font-bold text-gray-500 mb-1 block">Message</label>
                   <textarea id="edit-announce-msg" name="editMessage" defaultValue={editingAnnouncement.message} className="w-full text-sm p-3 border rounded-lg h-32" required />
+                </div>
+                <div>
+                  <label htmlFor="edit-announce-visibility" className="text-xs font-bold text-gray-500 mb-1 block">Visible To</label>
+                  <select 
+                    id="edit-announce-visibility"
+                    name="editVisibleTo" 
+                    defaultValue={editingAnnouncement.visibleTo || 'all'}
+                    className="w-full text-sm p-3 border rounded-lg bg-white"
+                    required
+                  >
+                    <option value="all">Everyone (Admins & Employees)</option>
+                    <option value="admin">Admins Only (Confidential)</option>
+                  </select>
                 </div>
                 <Button className="w-full bg-brand-navy shrink-0">Save Changes</Button>
               </form>

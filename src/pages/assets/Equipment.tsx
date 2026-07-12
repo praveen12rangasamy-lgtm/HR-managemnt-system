@@ -6,6 +6,7 @@ import { Send, Eye, EyeOff, Shield, MonitorPlay, Laptop, AlertCircle, CheckCircl
 import { useAuth } from '../../context/AuthContext';
 import { getScopedKey } from '../../utils/tenantHelper';
 import { useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 
 interface EquipmentItem {
   employee: string;
@@ -25,7 +26,7 @@ interface LicenseItem {
 
 const Equipment = () => {
   const { profile, user } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
   const [showPwd, setShowPwd] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [toast, setToast] = useState('');
@@ -40,6 +41,44 @@ const Equipment = () => {
   // Equipment and Licenses states
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [licenses, setLicenses] = useState<LicenseItem[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+
+  const fetchEmployees = async () => {
+    try {
+      const adminEmail = profile?.email || '';
+      const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+      
+      let query = supabase.from('profiles').select('id, full_name, employee_id, email, role, designation');
+      if (adminEmail && !primaryAdmins.includes(adminEmail.trim().toLowerCase())) {
+        query = query.eq('hired_by', adminEmail);
+      }
+      const { data: supabaseProfiles } = await query;
+      
+      let unified = (supabaseProfiles || [])
+        .filter((p: any) => p.role === 'employee')
+        .map((p: any) => ({
+          id: p.id,
+          name: p.full_name,
+          empId: p.employee_id,
+          email: p.email
+        }));
+
+      // Exclude fake profiles
+      const fakeNames = ['mukesh', 'sanjay', 'kanmani', 'angela martin', 'john doe'];
+      unified = unified.filter((p: any) => !fakeNames.includes(p.name?.toLowerCase() || ''));
+
+      // Deduplicate by name
+      const empMap = new Map();
+      unified.forEach(emp => {
+        const key = emp.name;
+        if (key) empMap.set(key, emp);
+      });
+
+      setEmployees(Array.from(empMap.values()));
+    } catch (err) {
+      console.error('Error fetching employee list:', err);
+    }
+  };
 
   useEffect(() => {
     if (profile || user) {
@@ -56,6 +95,9 @@ const Equipment = () => {
         setLicenses(storedLic ? JSON.parse(storedLic) : []);
       } catch {
         setLicenses([]);
+      }
+      if (isAdmin) {
+        fetchEmployees();
       }
     }
   }, [profile, user]);
@@ -118,9 +160,20 @@ const Equipment = () => {
   );
 
   // Dynamic user identifier for filtering personal view
-  const userIdentifier = profile?.full_name || profile?.employeeId || profile?.employee_id || 'Jane Doe';
-  const myEquipment = equipment.filter(e => e.employee === userIdentifier);
-  const myLicenses = licenses.filter(l => l.employee === userIdentifier);
+  const myEquipment = equipment.filter(e => {
+    const empName = (e.employee || '').toLowerCase().trim();
+    const curName = (profile?.full_name || '').toLowerCase().trim();
+    const curId1 = (profile?.employee_id || '').toLowerCase().trim();
+    const curId2 = (profile?.employeeId || '').toLowerCase().trim();
+    return empName === curName || (curId1 && empName === curId1) || (curId2 && empName === curId2);
+  });
+  const myLicenses = licenses.filter(l => {
+    const empName = (l.employee || '').toLowerCase().trim();
+    const curName = (profile?.full_name || '').toLowerCase().trim();
+    const curId1 = (profile?.employee_id || '').toLowerCase().trim();
+    const curId2 = (profile?.employeeId || '').toLowerCase().trim();
+    return empName === curName || (curId1 && empName === curId1) || (curId2 && empName === curId2);
+  });
 
   return (
     <div className="space-y-6 max-w-7xl animate-in fade-in duration-500 pb-12">
@@ -143,8 +196,15 @@ const Equipment = () => {
               <form onSubmit={handleAddHardware} className="space-y-4">
                 <div className="space-y-1">
                   <label htmlFor="hw-employee" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name or ID</label>
-                  <input id="hw-employee" type="text" required placeholder="e.g. VYR-2024-001 or John Smith" title="Employee Name or ID" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
-                    value={newHardware.employee} onChange={e => setNewHardware({...newHardware, employee: e.target.value})} />
+                  <select id="hw-employee" required title="Employee Name or ID" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none text-sm" 
+                    value={newHardware.employee} onChange={e => setNewHardware({...newHardware, employee: e.target.value})}>
+                    <option value="">Select Employee</option>
+                    {employees.map((emp, index) => (
+                      <option key={`hw-emp-${index}`} value={emp.name}>
+                        {emp.name} ({emp.empId || 'No ID'})
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -182,8 +242,15 @@ const Equipment = () => {
               <form onSubmit={handleAddSoftware} className="space-y-4">
                 <div className="space-y-1">
                   <label htmlFor="sw-employee" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name</label>
-                  <input id="sw-employee" type="text" required placeholder="Employee Name" title="Employee Name" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" 
-                    value={newSoftware.employee} onChange={e => setNewSoftware({...newSoftware, employee: e.target.value})} />
+                  <select id="sw-employee" required title="Employee Name" className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none text-sm" 
+                    value={newSoftware.employee} onChange={e => setNewSoftware({...newSoftware, employee: e.target.value})}>
+                    <option value="">Select Employee</option>
+                    {employees.map((emp, index) => (
+                      <option key={`sw-emp-${index}`} value={emp.name}>
+                        {emp.name} ({emp.empId || 'No ID'})
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="sw-name" className="text-xs font-bold text-gray-500 uppercase tracking-wider">Software Name</label>

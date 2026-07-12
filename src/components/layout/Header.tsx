@@ -13,6 +13,7 @@ const Header: React.FC<HeaderProps> = ({ isMobile }) => {
   const { profile } = useAuth();
   const path = location.pathname;
   const isAdmin = profile?.role === 'admin';
+  const isSuperAdmin = profile?.role === 'superadmin';
   const [notifCount, setNotifCount] = useState(0);
 
   useEffect(() => {
@@ -46,12 +47,18 @@ const Header: React.FC<HeaderProps> = ({ isMobile }) => {
   let subMenuItems: {name: string, path: string}[] = [];
 
   // Home Section
-  if (path === '/dashboard' || path.startsWith('/dashboard/home') || path.startsWith('/dashboard/updates') || path.startsWith('/dashboard/hiring') || path.startsWith('/dashboard/offboarding')) {
+  if (path === '/dashboard' || path.startsWith('/dashboard/home') || path.startsWith('/dashboard/updates') || path.startsWith('/dashboard/hiring') || path.startsWith('/dashboard/offboarding') || path.startsWith('/dashboard/admins') || path.startsWith('/dashboard/employees')) {
     subMenuItems = [
       { name: 'Dashboard', path: '/dashboard' },
       ...(isAdmin ? [
         { name: 'Post Job', path: '/dashboard/updates' },
         { name: 'Hiring & Onboarding', path: '/dashboard/hiring' },
+        { name: 'Offboarding', path: '/dashboard/offboarding' }
+      ] : []),
+      ...(isSuperAdmin ? [
+        { name: 'Admin Management', path: '/dashboard/admins' },
+        { name: 'Hiring & Onboarding', path: '/dashboard/hiring' },
+        { name: 'Employee Management', path: '/dashboard/employees' },
         { name: 'Offboarding', path: '/dashboard/offboarding' }
       ] : [])
     ];
@@ -68,7 +75,7 @@ const Header: React.FC<HeaderProps> = ({ isMobile }) => {
       { name: 'My Profile', path: '/dashboard/myspace/profile' },
       { name: 'Attendance', path: '/dashboard/myspace/attendance' },
       { name: 'Leaves', path: '/dashboard/myspace/leaves' },
-      ...(!isAdmin ? [{ name: 'Offboarding', path: '/dashboard/myspace/resignation' }] : []),
+      ...(!isAdmin && !isSuperAdmin ? [{ name: 'Offboarding', path: '/dashboard/myspace/resignation' }] : []),
       { name: 'Help Desk', path: '/dashboard/myspace/helpdesk' }
     ];
   }
