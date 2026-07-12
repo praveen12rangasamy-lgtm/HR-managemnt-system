@@ -170,7 +170,7 @@ const LandingPage: React.FC = () => {
 
       if (lookupError) {
         console.error('Master Router lookup error:', lookupError);
-        setError('Connection error. Please try again.');
+        setError(`Connection error: ${lookupError.message || JSON.stringify(lookupError)}. Please try again.`);
         setLoading(false);
         return;
       }
