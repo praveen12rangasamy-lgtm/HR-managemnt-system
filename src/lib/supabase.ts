@@ -1,7 +1,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const masterUrl = import.meta.env.VITE_SUPABASE_URL || 'https://nxtjqpehfdutqnvbaodb.supabase.co';
-const masterKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54dGpxcGVoZmR1dHFudmJhb2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4MzI1MDYsImV4cCI6MjA5OTQwODUwNn0.J4jb1IorRLAGoKTF80fIbToDkmCvNDjXVNXwha-W-vs';
+const getEnvValue = (val: any, fallback: string) => {
+  if (!val || val === 'undefined' || val === 'null' || val === 'placeholder' || typeof val !== 'string') {
+    return fallback;
+  }
+  return val;
+};
+
+const masterUrl = getEnvValue(import.meta.env.VITE_SUPABASE_URL, 'https://nxtjqpehfdutqnvbaodb.supabase.co');
+const masterKey = getEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54dGpxcGVoZmR1dHFudmJhb2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4MzI1MDYsImV4cCI6MjA5OTQwODUwNn0.J4jb1IorRLAGoKTF80fIbToDkmCvNDjXVNXwha-W-vs');
 
 // Master client to query tenant directory
 export const masterSupabase = createClient(masterUrl, masterKey);
