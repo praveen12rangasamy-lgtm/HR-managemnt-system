@@ -966,7 +966,7 @@ const Dashboard = () => {
       )}
 
       {profile?.role === 'superadmin' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-6">
           <Link to="/dashboard/admins" className="group">
             <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-brand-orange/5 to-white border-l-4 border-l-brand-orange overflow-hidden">
               <CardContent className="p-6 space-y-4">
@@ -976,6 +976,20 @@ const Dashboard = () => {
                 <div>
                   <h3 className="text-lg font-bold text-brand-navy">Admin Management</h3>
                   <p className="text-xs text-gray-500 mt-1">Provision and delete company admin accounts.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/dashboard/updates" className="group">
+            <Card className="h-full border-none shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 bg-gradient-to-br from-purple-50/30 to-white border-l-4 border-l-purple-500 overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                  <Briefcase size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-brand-navy">Post Job</h3>
+                  <p className="text-xs text-gray-500 mt-1">Post job vacancies and updates to the portal.</p>
                 </div>
               </CardContent>
             </Card>
