@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, masterSupabase, isPlatformMode } from '../lib/supabase';
+import { supabase, masterSupabase, isPlatformMode, onTenantChange } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -19,31 +19,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user);
-      } else {
-        setLoading(false);
+    let authSubscription: any = null;
+
+    const setupAuthListener = (client: any) => {
+      // Unsubscribe existing
+      if (authSubscription) {
+        authSubscription.unsubscribe();
       }
+
+      // 1. Get initial session
+      client.auth.getSession().then(({ data: { session } }: any) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          fetchProfile(session.user);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      });
+
+      // 2. Listen for auth changes
+      const { data: { subscription } } = client.auth.onAuthStateChange((_event: any, session: any) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          fetchProfile(session.user);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      });
+
+      authSubscription = subscription;
+    };
+
+    // Initialize with current client
+    setupAuthListener(supabase);
+
+    // Re-subscribe when tenant client is switched
+    const unsubscribeTenant = onTenantChange(() => {
+      // Re-setup listener on the new proxy client (which will resolve to the new activeClient)
+      setupAuthListener(supabase);
     });
 
-    // 2. Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchProfile(session.user);
-      } else {
-        setProfile(null);
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      if (authSubscription) authSubscription.unsubscribe();
+      unsubscribeTenant();
+    };
   }, []);
 
   const fetchProfile = async (currentUser: User) => {

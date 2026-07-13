@@ -28,13 +28,26 @@ if (activeUrl === DEFAULT_URL) {
 
 let activeClient: SupabaseClient = createClient(activeUrl, activeKey);
 
+type TenantChangeListener = (url: string, key: string) => void;
+const tenantChangeListeners: TenantChangeListener[] = [];
+
+export const onTenantChange = (listener: TenantChangeListener) => {
+  tenantChangeListeners.push(listener);
+  return () => {
+    const idx = tenantChangeListeners.indexOf(listener);
+    if (idx !== -1) tenantChangeListeners.splice(idx, 1);
+  };
+};
+
 export const switchTenant = (url: string, key: string) => {
   activeUrl = url;
   activeKey = key;
   localStorage.setItem('selected_tenant_url', url);
   localStorage.setItem('selected_tenant_key', key);
   activeClient = createClient(url, key);
-
+  
+  // Notify listeners
+  tenantChangeListeners.forEach(listener => listener(url, key));
 };
 
 // Clear active tenant and revert to default
@@ -44,6 +57,9 @@ export const resetTenant = () => {
   localStorage.removeItem('selected_tenant_slug');
   localStorage.removeItem('selected_tenant_name');
   activeClient = createClient(DEFAULT_URL, DEFAULT_KEY);
+  
+  // Notify listeners
+  tenantChangeListeners.forEach(listener => listener(DEFAULT_URL, DEFAULT_KEY));
 };
 
 // Always returns the current active client — use for debugging
