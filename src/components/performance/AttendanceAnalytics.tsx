@@ -47,9 +47,9 @@ const AttendanceAnalytics = () => {
       let profiles = profilesRes.data || [];
       if (profile?.email === 'praveen12rangasamy@gmail.com') {
         const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
-        profiles = profiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || '') && p.role !== 'admin');
+        profiles = profiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || '') && p.role === 'employee');
       } else {
-        profiles = profiles.filter(p => p.role !== 'admin');
+        profiles = profiles.filter(p => p.role === 'employee');
       }
 
       const profileIds = new Set(profiles.map(p => p.id));

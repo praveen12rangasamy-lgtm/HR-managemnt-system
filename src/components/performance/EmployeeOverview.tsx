@@ -39,8 +39,7 @@ const EmployeeOverview = () => {
       if (error) throw error;
 
       if (profiles) {
-        // Filter out admin profiles
-        let employees = profiles.filter(p => p.role !== 'admin' && p.email !== 'praveen12rangasamy@gmail.com');
+        let employees = profiles.filter(p => p.role === 'employee' && p.email !== 'praveen12rangasamy@gmail.com');
         if (profile?.email === 'praveen12rangasamy@gmail.com') {
           const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
           employees = employees.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || ''));

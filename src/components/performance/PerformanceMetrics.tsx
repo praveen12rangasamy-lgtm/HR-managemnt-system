@@ -41,14 +41,13 @@ const PerformanceMetrics = () => {
             const { data: rawProfiles, error } = await query;
 
             if (error) throw error;
-
             if (rawProfiles) {
                 let profiles = rawProfiles || [];
                 if (profile?.email && primaryAdmins.includes(profile.email.trim().toLowerCase())) {
                     const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
-                    profiles = profiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || '') && p.role !== 'admin');
+                    profiles = profiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || '') && p.role === 'employee');
                 } else {
-                    profiles = profiles.filter(p => p.role !== 'admin');
+                    profiles = profiles.filter(p => p.role === 'employee');
                 }
 
                 // Normalize scores to 0-5 for UI consistency

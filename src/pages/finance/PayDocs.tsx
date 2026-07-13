@@ -44,9 +44,9 @@ const PayDocs = () => {
         // If primary admin, exclude fake profiles
         if (profile.email === 'praveen12rangasamy@gmail.com') {
           const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
-          filteredEmps = filteredEmps.filter(e => !fakeNames.includes(e.full_name?.toLowerCase() || '') && e.role !== 'admin');
+          filteredEmps = filteredEmps.filter(e => !fakeNames.includes(e.full_name?.toLowerCase() || '') && e.role === 'employee');
         } else {
-          filteredEmps = filteredEmps.filter(e => e.role !== 'admin');
+          filteredEmps = filteredEmps.filter(e => e.role === 'employee');
         }
 
         setEmployees(filteredEmps);

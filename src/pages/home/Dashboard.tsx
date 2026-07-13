@@ -251,52 +251,66 @@ const Dashboard = () => {
     ]);
     setLoading(false);
   };
-    const fetchProfiles = async () => {
-      try {
-        setRefreshing(true);
-        if (profile?.role === 'superadmin') {
-          const { data: dbData, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .order('full_name', { ascending: true });
-          
-          if (error) throw error;
-          setProfiles(dbData || []);
-          setRefreshing(false);
-          return;
-        }
 
-        // 1. Get database profiles
+  const fetchProfiles = async () => {
+    try {
+      setRefreshing(true);
+      
+      // Fetch completed resignations to filter out offboarded employees
+      const { data: resignedData } = await supabase
+        .from('resignations')
+        .select('user_id')
+        .eq('status', 'Completed');
+      const resignedIds = new Set((resignedData || []).map(r => r.user_id));
+
+      if (profile?.role === 'superadmin') {
         const { data: dbData, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('hired_by', profile?.email)
-          .eq('role', 'employee')
           .order('full_name', { ascending: true });
         
         if (error) throw error;
         
-        let dbProfiles = dbData || [];
-
-        // Filter to exclude fake profiles if logged in as primary admin
-        if (profile?.email === 'praveen12rangasamy@gmail.com') {
-          const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
-          dbProfiles = dbProfiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || ''));
-        }
-
-        setProfiles(dbProfiles);
-
-        // Update totalEmployees stat dynamically
-        setStats(prev => ({
-          ...prev,
-          totalEmployees: dbProfiles.length
-        }));
-      } catch (err) {
-        console.error('Error fetching profiles:', err);
-      } finally {
+        const filteredProfiles = (dbData || []).filter(p => 
+          p.role !== 'inactive' && 
+          (p.role !== 'employee' || !resignedIds.has(p.id))
+        );
+        setProfiles(filteredProfiles);
         setRefreshing(false);
+        return;
       }
-    };
+
+      // 1. Get database profiles
+      const { data: dbData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('hired_by', profile?.email)
+        .eq('role', 'employee')
+        .order('full_name', { ascending: true });
+      
+      if (error) throw error;
+      
+      let dbProfiles = (dbData || []).filter(p => !resignedIds.has(p.id));
+
+      // Filter to exclude fake profiles if logged in as primary admin
+      if (profile?.email === 'praveen12rangasamy@gmail.com') {
+        const fakeNames = ['mukesh', 'sanjay', 'kanmani'];
+        dbProfiles = dbProfiles.filter(p => !fakeNames.includes(p.full_name?.toLowerCase() || ''));
+      }
+
+      setProfiles(dbProfiles);
+
+      // Update totalEmployees stat dynamically
+      setStats(prev => ({
+        ...prev,
+        totalEmployees: dbProfiles.length
+      }));
+    } catch (err) {
+      console.error('Error fetching profiles:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
 
    const handleSync = async () => {
@@ -387,19 +401,28 @@ const Dashboard = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       
+      // Fetch completed resignations to filter out offboarded employees
+      const { data: resignedData } = await supabase
+        .from('resignations')
+        .select('user_id')
+        .eq('status', 'Completed');
+      const resignedIds = new Set((resignedData || []).map(r => r.user_id));
+
       if (profile?.role === 'superadmin') {
         const { count: totalAdmins } = await supabase
           .from('profiles')
           .select('*', { count: 'exact', head: true })
           .eq('role', 'admin');
 
-        const { count: totalEmployees } = await supabase
+        const { data: allEmployees } = await supabase
           .from('profiles')
-          .select('*', { count: 'exact', head: true })
+          .select('id')
           .eq('role', 'employee');
+          
+        const activeEmployeeCount = (allEmployees || []).filter(p => !resignedIds.has(p.id)).length;
 
         setStats({
-          totalEmployees: totalEmployees || 0,
+          totalEmployees: activeEmployeeCount,
           presentToday: totalAdmins || 0,
           onLeave: 0
         });
@@ -413,7 +436,7 @@ const Dashboard = () => {
         .neq('role', 'admin')
         .eq('hired_by', profile?.email);
       
-      let filteredAdminProfiles = adminProfiles || [];
+      let filteredAdminProfiles = (adminProfiles || []).filter(p => !resignedIds.has(p.id));
       const primaryAdmins = ['praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
       if (profile?.email && primaryAdmins.includes(profile.email.trim().toLowerCase())) {
         const fakeNames = ['mukesh', 'sanjay', 'kanmani'];

@@ -143,7 +143,7 @@ const CalendarPage: React.FC = () => {
           .select('id, full_name, email, created_at, role');
         if (data) {
           // Filter out admin profile from birthdays
-          setDbEmployees(data.filter((p: any) => p.email !== 'praveen12rangasamy@gmail.com' && p.role !== 'admin'));
+          setDbEmployees(data.filter((p: any) => p.email !== 'praveen12rangasamy@gmail.com' && p.role === 'employee'));
         }
       } catch (err) {
         console.error('Error fetching profiles for calendar:', err);

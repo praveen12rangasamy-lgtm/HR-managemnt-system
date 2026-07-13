@@ -71,7 +71,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isTablet }) => {
           {!isTablet && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-white truncate">{profile?.full_name || 'User'}</p>
-              <p className="text-xs text-gray-400 truncate uppercase tracking-widest">{profile?.role || 'Member'}</p>
+              <p className={`text-xs text-gray-400 truncate tracking-widest ${profile?.role === 'superadmin' ? 'lowercase' : 'uppercase'}`}>
+                {profile?.role === 'superadmin' ? 'super admin' : (profile?.role || 'Member')}
+              </p>
             </div>
           )}
           {!isTablet && (

@@ -60,7 +60,7 @@ const SkillsLearning = () => {
       const { data } = await query;
       
       if (data) {
-        employeeNames = data.filter(p => p.role !== 'admin').map(p => p.full_name || '');
+        employeeNames = data.filter(p => p.role === 'employee').map(p => p.full_name || '');
       }
     } catch (err) {
       console.error('Supabase fetch failed:', err);
