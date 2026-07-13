@@ -33,6 +33,7 @@ import Performance from './pages/performance/Performance';
 // import Analytics from './pages/performance/Analytics';
 
 import LandingPage from './pages/LandingPage';
+import ResetPassword from './pages/ResetPassword';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -62,6 +63,7 @@ function App() {
         <Routes>
           {/* Public Landing Page */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           
           {/* Protected Dashboard Routes */}
           <Route path="/dashboard" element={

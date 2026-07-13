@@ -53,6 +53,7 @@ const LandingPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [forgotInput, setForgotInput] = useState('');
 
   // Tenant / Company states
   const [companyInputSlug, setCompanyInputSlug] = useState('');
@@ -388,6 +389,62 @@ const LandingPage: React.FC = () => {
     }
   };
 
+
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const input = forgotInput.trim();
+      let targetEmail = '';
+
+      if (input.includes('@')) {
+        targetEmail = input.toLowerCase();
+      } else {
+        // Resolve Employee ID to Email
+        const { data: dbProfile, error: dbError } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('employee_id', input)
+          .maybeSingle();
+
+        if (dbError) {
+          setError('Database error while looking up Employee ID.');
+          setLoading(false);
+          return;
+        }
+
+        if (!dbProfile) {
+          setError('No account found with this Employee ID.');
+          setLoading(false);
+          return;
+        }
+
+        targetEmail = dbProfile.email;
+      }
+
+      // Call Supabase password reset email
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) {
+        setError(resetError.message || 'Failed to send password reset email.');
+        setLoading(false);
+        return;
+      }
+
+      setSuccessMessage('Password reset link sent! Check your inbox.');
+      setForgotInput('');
+    } catch (err: any) {
+      console.error('Forgot password error:', err);
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -919,6 +976,9 @@ const LandingPage: React.FC = () => {
                 required
               />
             </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px', width: '100%' }}>
+              <button type="button" className="form-forgot" onClick={() => openModal('forgotPasswordModal')}>Forgot password?</button>
+            </div>
             <button className="modal-btn accent" type="submit" disabled={loading}>
               {loading ? 'Authenticating...' : 'Sign In as Admin →'}
             </button>
@@ -966,6 +1026,9 @@ const LandingPage: React.FC = () => {
                 autoComplete="current-password"
               />
             </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px', width: '100%' }}>
+              <button type="button" className="form-forgot" onClick={() => openModal('forgotPasswordModal')}>Forgot password?</button>
+            </div>
             <button className="modal-btn" type="submit" disabled={loading}>
               {loading ? 'Authenticating...' : 'Sign In as Employee →'}
             </button>
@@ -973,6 +1036,42 @@ const LandingPage: React.FC = () => {
 
           <div className="modal-switch mt-20">Are you an admin? <a href="#" onClick={() => openModal('adminModal')}>Login as Admin</a></div>
           <div className="modal-switch mt-10"><a href="#" onClick={() => openModal('selectorModal')}>← Back</a></div>
+        </div>
+      </div>
+
+      {/* ===== FORGOT PASSWORD MODAL ===== */}
+      <div className={`modal-overlay ${activeModal === 'forgotPasswordModal' ? 'open' : ''}`} onClick={(e) => e.target === e.currentTarget && closeModals()}>
+        <div className="modal animate-in fade-in duration-200">
+          <button className="modal-close" onClick={closeModals}>✕</button>
+          <div className="modal-logo">
+            <img src="/logo.png" alt="VyaraHR" />
+          </div>
+          <h2>Reset Password</h2>
+          <p className="modal-subtitle">We will send a password reset link to your email</p>
+          
+          <form onSubmit={handleForgotPasswordSubmit}>
+            {error && <div className="error-message">{error}</div>}
+            {successMessage && <div className="success-message" style={{ color: 'var(--teal)', fontSize: '0.85rem', marginBottom: '12px', textAlign: 'center' }}>{successMessage}</div>}
+            
+            <div className="form-group">
+              <label className="form-label">Employee ID or Email</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="e.g. VYR-101 or email@company.com" 
+                value={forgotInput}
+                onChange={(e) => setForgotInput(e.target.value)}
+                required
+                autoComplete="off"
+              />
+            </div>
+            
+            <button className="modal-btn accent" type="submit" disabled={loading}>
+              {loading ? 'Sending link...' : 'Send Reset Link →'}
+            </button>
+          </form>
+          
+          <div className="modal-switch mt-20">Remembered your password? <a href="#" onClick={() => openModal('selectorModal')}>Back to Login</a></div>
         </div>
       </div>
 
