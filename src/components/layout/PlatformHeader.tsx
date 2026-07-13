@@ -37,7 +37,7 @@ const PlatformHeader: React.FC<PlatformHeaderProps> = ({ isMobile }) => {
         {/* Badge */}
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-xs font-semibold">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          Connected to Master Router
+          Connected to VyaraHR Platform
         </div>
 
         {/* User Info */}

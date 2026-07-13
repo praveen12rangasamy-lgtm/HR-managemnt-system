@@ -176,7 +176,7 @@ const LandingPage: React.FC = () => {
     }
 
     try {
-      // Query the Master Router for the tenant connection details
+      // Query the VyaraHR Platform for the tenant connection details
       const { data, error: lookupError } = await masterSupabase
         .from('tenant_connections')
         .select('*')
@@ -184,7 +184,7 @@ const LandingPage: React.FC = () => {
         .maybeSingle();
 
       if (lookupError) {
-        console.error('Master Router lookup error:', lookupError);
+        console.error('VyaraHR Platform lookup error:', lookupError);
         setError(`Connection error: ${lookupError.message || JSON.stringify(lookupError)}. Please try again.`);
         setLoading(false);
         return;

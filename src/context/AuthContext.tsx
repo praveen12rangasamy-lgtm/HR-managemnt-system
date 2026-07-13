@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = async (currentUser: User) => {
     setLoading(true);
 
-    // 1. Platform Mode check: if connected to Master Router, verify in platform_users
+    // 1. Platform Mode check: if connected to VyaraHR Platform, verify in platform_users
     if (isPlatformMode()) {
       try {
         const { data: platformUser, error: platformErr } = await masterSupabase

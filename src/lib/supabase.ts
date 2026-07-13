@@ -60,7 +60,7 @@ export const getTenantMeta = () => ({
   name: localStorage.getItem('selected_tenant_name') || '',
 });
 
-// Check if currently operating in Platform Admin mode (connected directly to Master Router)
+// Check if currently operating in Platform Admin mode (connected directly to VyaraHR Platform)
 export const isPlatformMode = (): boolean => activeUrl === masterUrl;
 
 
