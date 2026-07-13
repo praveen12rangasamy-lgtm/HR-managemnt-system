@@ -46,14 +46,13 @@ const LandingPage: React.FC = () => {
   
   // Auth states
   const [email, setEmail] = useState('');
-  const [adminEmployeeId, setAdminEmployeeId] = useState('');
-  const [employeeEmail, setEmployeeEmail] = useState('');
   const [superEmail, setSuperEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [forgotInput, setForgotInput] = useState('');
+  const [emailOrId, setEmailOrId] = useState('');
 
   // Tenant / Company states
   const [companyInputSlug, setCompanyInputSlug] = useState('');
@@ -170,7 +169,7 @@ const LandingPage: React.FC = () => {
       localStorage.setItem('selected_tenant_slug', 'vyarahr-platform');
       localStorage.setItem('selected_tenant_name', 'VyaraHR Platform');
       setSelectedCompany({ name: 'VyaraHR Platform', slug: 'vyarahr-platform' });
-      setActiveModal('adminModal');
+      setActiveModal('loginModal');
       setLoading(false);
       return;
     }
@@ -212,8 +211,8 @@ const LandingPage: React.FC = () => {
       // Update state
       setSelectedCompany({ name: data.company_name, slug: data.company_slug });
 
-      // Proceed to the role selector modal
-      setActiveModal('selectorModal');
+      // Proceed to the unified login modal
+      setActiveModal('loginModal');
     } catch (err: any) {
       console.error('Tenant selection error:', err);
       setError(err.message || 'An error occurred during company verification.');
@@ -222,15 +221,15 @@ const LandingPage: React.FC = () => {
     }
   };
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
+  const handleUnifiedLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const inputId = adminEmployeeId.trim();
+      const inputId = emailOrId.trim();
       if (!inputId) {
-        setError('Please enter your Admin Employee ID or Email.');
+        setError('Please enter your Employee ID or Email.');
         setLoading(false);
         return;
       }
@@ -266,6 +265,7 @@ const LandingPage: React.FC = () => {
 
         targetEmail = platformUser.email;
       } else {
+        // Normal organization mode: resolve Email or Employee ID
         const superAdmins = ['superadmin@vyarahr.com', 'superadmin@gmail.com', 'praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
 
         if (inputId.includes('@')) {
@@ -273,7 +273,7 @@ const LandingPage: React.FC = () => {
           if (superAdmins.includes(emailToCheck)) {
             targetEmail = emailToCheck;
           } else {
-            // Look up the admin's profile from email
+            // Look up the profile from email
             const { data: profile, error: lookupError } = await supabase
               .from('profiles')
               .select('email, role')
@@ -281,19 +281,13 @@ const LandingPage: React.FC = () => {
               .maybeSingle();
 
             if (lookupError) {
-              setError('Database error while looking up administrator email.');
+              setError('Database error while looking up profile.');
               setLoading(false);
               return;
             }
 
             if (!profile) {
-              setError('No administrator account found with this email.');
-              setLoading(false);
-              return;
-            }
-
-            if (profile.role !== 'admin' && profile.role !== 'superadmin' && profile.role !== 'owner') {
-              setError('This email does not belong to an administrator account.');
+              setError('No account found with this email.');
               setLoading(false);
               return;
             }
@@ -301,7 +295,7 @@ const LandingPage: React.FC = () => {
             targetEmail = profile.email;
           }
         } else {
-          // Look up the admin's email from their Employee ID in the database
+          // Look up the profile from Employee ID
           const { data: profile, error: lookupError } = await supabase
             .from('profiles')
             .select('email, role')
@@ -315,13 +309,7 @@ const LandingPage: React.FC = () => {
           }
 
           if (!profile) {
-            setError('No administrator account found with this Employee ID.');
-            setLoading(false);
-            return;
-          }
-
-          if (profile.role !== 'admin' && profile.role !== 'superadmin' && profile.role !== 'owner') {
-            setError('This Employee ID does not belong to an administrator account.');
+            setError('No account found with this Employee ID.');
             setLoading(false);
             return;
           }
@@ -349,90 +337,8 @@ const LandingPage: React.FC = () => {
       }
       closeModals();
     } catch (err: any) {
-      console.error('Admin login system error:', err);
+      console.error('Unified login error:', err);
       setError(err.message || 'An error occurred during authentication.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-
-  const handleEmployeeLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      let targetEmail = employeeEmail.trim();
-
-      // Resolve Employee ID to email via Supabase
-      if (!targetEmail.includes('@')) {
-        const { data: dbProfile, error: dbError } = await supabase
-          .from('profiles')
-          .select('email, role')
-          .eq('employee_id', targetEmail)
-          .maybeSingle();
-
-        if (dbError) {
-          setError('Database error while looking up Employee ID.');
-          setLoading(false);
-          return;
-        }
-
-        if (!dbProfile) {
-          setError('No employee account found with this ID. Please contact your administrator.');
-          setLoading(false);
-          return;
-        }
-
-        if (dbProfile.role !== 'employee') {
-          setError('This ID does not belong to an employee account. Please use the Admin Login.');
-          setLoading(false);
-          return;
-        }
-
-        targetEmail = dbProfile.email;
-      }
-
-      // Sign in with resolved email
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: targetEmail,
-        password,
-      });
-
-      if (authError) {
-        setError('Invalid credentials. Please check your Employee ID and password.');
-        setLoading(false);
-        return;
-      }
-
-      // Verify role in DB
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', authData.user?.id)
-        .single();
-
-      if (profileError || !profile) {
-        await supabase.auth.signOut();
-        setError('Employee profile not found. Please contact your administrator.');
-        setLoading(false);
-        return;
-      }
-
-      if (profile.role !== 'employee') {
-        await supabase.auth.signOut();
-        setError('Access denied. Please use the Admin Login for administrator accounts.');
-        setLoading(false);
-        return;
-      }
-
-      navigate('/dashboard');
-      closeModals();
-    } catch (err: any) {
-      console.error('Employee login system error:', err);
-      setError(err.message || 'An error occurred during employee authentication.');
     } finally {
       setLoading(false);
     }
@@ -597,7 +503,7 @@ const LandingPage: React.FC = () => {
         {/* Desktop CTA */}
         <div className="nav-cta">
           <button className="btn-ghost" onClick={() => openModal('signupModal')}>Sign Up</button>
-          <button className="btn-ghost" onClick={() => openModal('selectorModal')}>Log In</button>
+          <button className="btn-ghost" onClick={() => selectedCompany ? openModal('loginModal') : openModal('companySlugModal')}>Log In</button>
           <button className="btn-primary" onClick={() => openModal('signupModal')}>Get Started Free</button>
         </div>
 
@@ -624,7 +530,7 @@ const LandingPage: React.FC = () => {
         </ul>
         <div className="mobile-nav-cta">
           <button className="btn-primary w-full" onClick={() => { setIsMobileMenuOpen(false); openModal('signupModal'); }}>Start Free Trial</button>
-          <button className="btn-ghost w-full" onClick={() => { setIsMobileMenuOpen(false); openModal('selectorModal'); }}>Sign In</button>
+          <button className="btn-ghost w-full" onClick={() => { setIsMobileMenuOpen(false); selectedCompany ? openModal('loginModal') : openModal('companySlugModal'); }}>Sign In</button>
         </div>
       </div>
 
@@ -934,8 +840,8 @@ const LandingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ===== LOGIN SELECTOR MODAL ===== */}
-      <div className={`modal-overlay ${activeModal === 'selectorModal' ? 'open' : ''}`} onClick={(e) => e.target === e.currentTarget && closeModals()}>
+      {/* ===== UNIFIED LOGIN MODAL ===== */}
+      <div className={`modal-overlay ${activeModal === 'loginModal' ? 'open' : ''}`} onClick={(e) => e.target === e.currentTarget && closeModals()}>
         <div className="modal">
           <button className="modal-close" onClick={closeModals}>✕</button>
           <div className="modal-logo">
@@ -973,94 +879,28 @@ const LandingPage: React.FC = () => {
             </div>
           )}
 
-          <h2 className="modal-welcome-title">Welcome Back</h2>
-          <p className="modal-subtitle">Select your account type to continue</p>
-          <div className="login-selector">
-            <div className="login-option" onClick={() => openModal('adminModal')}>
-              <div className="opt-label">Admin</div>
-              <div className="opt-sub">Company administrator access</div>
-            </div>
-            <div className="login-option login-option-employee" onClick={() => openModal('employeeModal')}>
-              <div className="opt-label">Employee</div>
-              <div className="opt-sub">Personal employee portal</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ===== ADMIN LOGIN MODAL ===== */}
-      <div className={`modal-overlay ${activeModal === 'adminModal' ? 'open' : ''}`} onClick={(e) => e.target === e.currentTarget && closeModals()}>
-        <div className="modal">
-          <button className="modal-close" onClick={closeModals}>✕</button>
-          <div className="modal-logo">
-            <img src="/logo.png" alt="VyaraHR" />
-          </div>
-          <div className="modal-role-badge admin">Admin Login</div>
-          <h2>Admin Portal</h2>
-          <p className="modal-subtitle">Sign in with your Admin Employee ID or Email and password</p>
+          <h2>Sign In</h2>
+          <p className="modal-subtitle">
+            {isPlatformMode() 
+              ? 'Sign in to the Platform Control Center using your operator email' 
+              : 'Enter your Email or Employee ID and password to access your portal'
+            }
+          </p>
           
-          <form onSubmit={handleAdminLogin}>
-            {error && <div className="error-message error-msg-admin">{error}</div>}
+          <form onSubmit={handleUnifiedLogin}>
+            {error && <div className="error-message">{error}</div>}
             <div className="form-group">
-              <label className="form-label">Admin Employee ID or Email</label>
+              <label className="form-label">
+                {isPlatformMode() ? 'Operator Email' : 'Email Address or Employee ID'}
+              </label>
               <input 
                 type="text" 
                 className="form-input" 
-                placeholder="e.g. ADM-2026-001 or admin@vyarahr.com" 
-                value={adminEmployeeId}
-                onChange={(e) => setAdminEmployeeId(e.target.value)}
+                placeholder={isPlatformMode() ? "name@company.com" : "e.g. VYR-2024-001 or name@company.com"} 
+                value={emailOrId}
+                onChange={(e) => setEmailOrId(e.target.value)}
                 required
-                autoComplete="off"
-              />
-
-            </div>
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <input 
-                type="password" 
-                className="form-input" 
-                placeholder="Enter your password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', width: '100%' }}>
-              <button type="button" className="form-forgot" onClick={() => openModal('forgotPasswordModal')}>Forgot password?</button>
-            </div>
-            <button className="modal-btn accent" type="submit" disabled={loading}>
-              {loading ? 'Authenticating...' : 'Sign In as Admin →'}
-            </button>
-          </form>
-          
-          <div className="modal-switch mt-20">Not an admin? <a href="#" onClick={() => openModal('employeeModal')}>Login as Employee</a></div>
-          <div className="modal-switch mt-10"><a href="#" onClick={() => openModal('selectorModal')}>← Back</a></div>
-        </div>
-      </div>
-
-      {/* ===== EMPLOYEE LOGIN MODAL ===== */}
-      <div className={`modal-overlay ${activeModal === 'employeeModal' ? 'open' : ''}`} onClick={(e) => e.target === e.currentTarget && closeModals()}>
-        <div className="modal">
-          <button className="modal-close" onClick={closeModals}>✕</button>
-          <div className="modal-logo">
-            <img src="/logo.png" alt="VyaraHR" />
-          </div>
-          <div className="modal-role-badge employee">Employee Login</div>
-          <h2>Employee Portal</h2>
-          <p className="modal-subtitle">Sign in using your company email/ID and password</p>
-          
-          <form onSubmit={handleEmployeeLogin}>
-            {error && <div className="error-message error-msg-employee">{error}</div>}
-            <div className="form-group">
-              <label className="form-label">Work Email / Employee ID</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="e.g. john.doe@company.com or VYR-..." 
-                value={employeeEmail}
-                onChange={(e) => setEmployeeEmail(e.target.value)}
-                required
-                autoComplete="email"
+                autoComplete="username"
               />
             </div>
             <div className="form-group">
@@ -1078,13 +918,12 @@ const LandingPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', width: '100%' }}>
               <button type="button" className="form-forgot" onClick={() => openModal('forgotPasswordModal')}>Forgot password?</button>
             </div>
-            <button className="modal-btn" type="submit" disabled={loading}>
-              {loading ? 'Authenticating...' : 'Sign In as Employee →'}
+            <button className="modal-btn accent" type="submit" disabled={loading}>
+              {loading ? 'Authenticating...' : 'Sign In →'}
             </button>
           </form>
-
-          <div className="modal-switch mt-20">Are you an admin? <a href="#" onClick={() => openModal('adminModal')}>Login as Admin</a></div>
-          <div className="modal-switch mt-10"><a href="#" onClick={() => openModal('selectorModal')}>← Back</a></div>
+          
+          <div className="modal-switch mt-20"><a href="#" onClick={() => openModal('companySlugModal')}>← Back</a></div>
         </div>
       </div>
 
@@ -1120,7 +959,7 @@ const LandingPage: React.FC = () => {
             </button>
           </form>
           
-          <div className="modal-switch mt-20">Remembered your password? <a href="#" onClick={() => openModal('selectorModal')}>Back to Login</a></div>
+          <div className="modal-switch mt-20">Remembered your password? <a href="#" onClick={() => openModal('loginModal')}>Back to Login</a></div>
         </div>
       </div>
 
