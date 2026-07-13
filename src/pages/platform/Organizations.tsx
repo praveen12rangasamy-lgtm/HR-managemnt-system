@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, HelpCircle, Cpu, FileText, Trash2, Edit2 } from 'lucide-react';
+import { Building2, Plus, Search, HelpCircle, Cpu, FileText, Trash2, Edit2, Shield, Users, CheckCircle2, XCircle } from 'lucide-react';
 import { organizationService } from '../../services/organizationService';
 import { tenantService } from '../../services/tenantService';
 import { auditService } from '../../services/auditService';
@@ -15,6 +15,13 @@ const Organizations: React.FC = () => {
   // Form States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
+  const [selectedOrgStats, setSelectedOrgStats] = useState<{
+    org: Organization;
+    admins: number | null;
+    employees: number | null;
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
   const [newOrg, setNewOrg] = useState({
     name: '',
     slug: '',
@@ -41,6 +48,52 @@ const Organizations: React.FC = () => {
   useEffect(() => {
     fetchOrgs();
   }, []);
+
+  const handleRowClick = async (org: Organization) => {
+    setSelectedOrgStats({
+      org,
+      admins: null,
+      employees: null,
+      loading: true,
+      error: null
+    });
+
+    try {
+      const conn = await tenantService.getBySlug(org.slug);
+      if (!conn) {
+        throw new Error('No connection credentials found for this tenant.');
+      }
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const tempClient = createClient(conn.supabase_url, conn.supabase_anon_key);
+      
+      const { data, error } = await tempClient
+        .from('profiles')
+        .select('role');
+
+      if (error) throw error;
+
+      const admins = data.filter(p => p.role === 'admin' || p.role === 'owner').length;
+      const employees = data.filter(p => p.role === 'employee').length;
+
+      setSelectedOrgStats({
+        org,
+        admins,
+        employees,
+        loading: false,
+        error: null
+      });
+    } catch (err: any) {
+      console.error('Failed to load tenant stats:', err);
+      setSelectedOrgStats({
+        org,
+        admins: null,
+        employees: null,
+        loading: false,
+        error: err.message || 'Could not connect to tenant database.'
+      });
+    }
+  };
 
   const handleEditClick = async (org: Organization) => {
     setEditingOrg(org);
@@ -255,7 +308,11 @@ const Organizations: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
                 {filteredOrgs.map((org) => (
-                  <tr key={org.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr 
+                    key={org.id} 
+                    className="hover:bg-gray-50/50 transition-colors cursor-pointer"
+                    onClick={() => handleRowClick(org)}
+                  >
                     <td className="p-5">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-brand-orange/10 text-brand-orange rounded-xl">
@@ -289,7 +346,7 @@ const Organizations: React.FC = () => {
                       {new Date(org.created_at).toLocaleDateString()}
                     </td>
                     <td className="p-5 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleEditClick(org)}
                           className="p-2 rounded-lg border border-brand-orange/20 bg-brand-orange/5 text-brand-orange hover:bg-brand-orange/10 transition-all"
@@ -441,6 +498,108 @@ const Organizations: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* TENANT STATS / DETAILS MODAL */}
+      {selectedOrgStats && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative animate-in zoom-in duration-200 text-brand-navy">
+            <button
+              onClick={() => setSelectedOrgStats(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-brand-navy text-lg font-bold"
+            >
+              ✕
+            </button>
+            
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-brand-orange/10 text-brand-orange rounded-2xl">
+                <Building2 size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-brand-navy">{selectedOrgStats.org.name}</h3>
+                <p className="text-xs text-brand-orange font-mono font-bold tracking-wider uppercase">{selectedOrgStats.org.slug}</p>
+              </div>
+            </div>
+
+            {selectedOrgStats.loading ? (
+              <div className="flex flex-col items-center justify-center py-12 space-y-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-orange"></div>
+                <span className="text-xs text-gray-500 font-semibold">Connecting to organization database...</span>
+              </div>
+            ) : selectedOrgStats.error ? (
+              <div className="p-4 bg-red-50/50 border border-red-200 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 text-red-600">
+                  <XCircle size={16} />
+                  <span className="text-xs font-bold">Database Connection Offline</span>
+                </div>
+                <p className="text-[11px] text-red-500 font-medium leading-relaxed">{selectedOrgStats.error}</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Admins Card */}
+                  <div className="p-4 bg-gray-50/50 border border-gray-200 rounded-xl flex items-center justify-between shadow-sm">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Administrators</span>
+                      <p className="text-3xl font-black text-brand-navy">{selectedOrgStats.admins}</p>
+                    </div>
+                    <div className="p-3 bg-brand-orange/10 text-brand-orange rounded-xl">
+                      <Shield size={20} />
+                    </div>
+                  </div>
+
+                  {/* Employees Card */}
+                  <div className="p-4 bg-gray-50/50 border border-gray-200 rounded-xl flex items-center justify-between shadow-sm">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Employees</span>
+                      <p className="text-3xl font-black text-brand-navy">{selectedOrgStats.employees}</p>
+                    </div>
+                    <div className="p-3 bg-brand-orange/10 text-brand-orange rounded-xl">
+                      <Users size={20} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Connection Status & Details */}
+                <div className="p-4 bg-emerald-50/30 border border-emerald-100 rounded-xl flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-emerald-600" />
+                    <span className="text-xs font-bold text-emerald-800">Connection Online</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-600 font-bold uppercase bg-emerald-100/50 px-2.5 py-0.5 rounded-full">Active</span>
+                </div>
+
+                <div className="border-t border-gray-100 pt-4 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500 font-bold">Billing Plan:</span>
+                    <span className="font-bold text-brand-orange uppercase">{selectedOrgStats.org.plan}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500 font-bold">Country / Region:</span>
+                    <span className="font-semibold text-brand-navy">{selectedOrgStats.org.country || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500 font-bold">Supabase Project Ref:</span>
+                    <span className="font-mono text-[11px] text-brand-navy font-semibold">{selectedOrgStats.org.supabase_project_ref || 'Local / Custom'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500 font-bold">Created On:</span>
+                    <span className="font-semibold text-brand-navy">{new Date(selectedOrgStats.org.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setSelectedOrgStats(null)}
+                className="px-5 py-2 bg-brand-orange hover:bg-brand-orange/90 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+              >
+                Close Panel
+              </button>
+            </div>
           </div>
         </div>
       )}
