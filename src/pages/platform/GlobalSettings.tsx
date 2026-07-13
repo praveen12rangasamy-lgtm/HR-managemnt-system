@@ -1,24 +1,93 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Shield, Sparkles, CreditCard, Bell } from 'lucide-react';
+import { masterSupabase } from '../../lib/supabase';
+import { auditService } from '../../services/auditService';
+import { useAuth } from '../../context/AuthContext';
 
 const GlobalSettings: React.FC = () => {
+  const { profile } = useAuth();
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [allowNewSignups, setAllowNewSignups] = useState(true);
   const [defaultTrialDays, setDefaultTrialDays] = useState(14);
   const [brandingName, setBrandingName] = useState('VyaraHR');
 
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data, error } = await masterSupabase
+          .from('global_settings')
+          .select('*');
+
+        if (error) throw error;
+
+        if (data) {
+          data.forEach((item: any) => {
+            if (item.key === 'maintenance_mode') setMaintenanceMode(item.value);
+            if (item.key === 'allow_new_signups') setAllowNewSignups(item.value);
+            if (item.key === 'default_trial_days') setDefaultTrialDays(Number(item.value) || 14);
+            if (item.key === 'branding_name') setBrandingName(item.value);
+          });
+        }
+      } catch (err: any) {
+        console.error('Failed to load global settings:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSuccess(false);
-    setTimeout(() => {
-      setSaving(false);
+    setError(null);
+
+    try {
+      const updates = [
+        { key: 'maintenance_mode', value: maintenanceMode },
+        { key: 'allow_new_signups', value: allowNewSignups },
+        { key: 'default_trial_days', value: defaultTrialDays },
+        { key: 'branding_name', value: brandingName }
+      ];
+
+      for (const update of updates) {
+        const { error } = await masterSupabase
+          .from('global_settings')
+          .upsert(update);
+
+        if (error) throw error;
+      }
+
+      await auditService.log(
+        'Updated global settings configuration',
+        profile?.email || 'unknown',
+        'platform_admin'
+      );
+
       setSuccess(true);
-    }, 800);
+    } catch (err: any) {
+      console.error('Failed to save settings:', err);
+      setError(err.message || 'Failed to save configuration settings.');
+    } finally {
+      setSaving(false);
+    }
   };
+
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#FF5900]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-4xl animate-in fade-in duration-300">
@@ -28,6 +97,11 @@ const GlobalSettings: React.FC = () => {
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
+        {error && (
+          <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl text-xs font-semibold">
+            {error}
+          </div>
+        )}
         {success && (
           <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl text-xs font-semibold">
             Settings updated successfully!
