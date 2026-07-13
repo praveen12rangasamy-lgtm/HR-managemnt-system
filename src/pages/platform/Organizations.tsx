@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, HelpCircle, Cpu, FileText, Trash2 } from 'lucide-react';
+import { Building2, Plus, Search, HelpCircle, Cpu, FileText, Trash2, Edit2 } from 'lucide-react';
 import { organizationService } from '../../services/organizationService';
 import { tenantService } from '../../services/tenantService';
 import { auditService } from '../../services/auditService';
@@ -14,6 +14,7 @@ const Organizations: React.FC = () => {
 
   // Form States
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
   const [newOrg, setNewOrg] = useState({
     name: '',
     slug: '',
@@ -41,6 +42,29 @@ const Organizations: React.FC = () => {
     fetchOrgs();
   }, []);
 
+  const handleEditClick = async (org: Organization) => {
+    setEditingOrg(org);
+    setSubmitLoading(true);
+    setError(null);
+    try {
+      const conn = await tenantService.getBySlug(org.slug);
+      setNewOrg({
+        name: org.name,
+        slug: org.slug,
+        country: org.country || 'India',
+        plan: org.plan,
+        supabase_url: conn?.supabase_url || '',
+        supabase_anon_key: conn?.supabase_anon_key || ''
+      });
+      setIsModalOpen(true);
+    } catch (err: any) {
+      console.error('Failed to load organization details:', err);
+      setError('Failed to fetch tenant credentials.');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   const handleCreateOrg = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -54,35 +78,67 @@ const Organizations: React.FC = () => {
     }
 
     try {
-      // 1. Create Connection Entry
-      const connection = await tenantService.create({
-        company_name: newOrg.name,
-        company_slug: slug,
-        supabase_url: newOrg.supabase_url.trim(),
-        supabase_anon_key: newOrg.supabase_anon_key.trim()
-      });
+      if (editingOrg) {
+        // 1. Update Connection Entry
+        const conn = await tenantService.getBySlug(editingOrg.slug);
+        if (conn) {
+          await tenantService.update(conn.id, {
+            company_name: newOrg.name,
+            company_slug: slug,
+            supabase_url: newOrg.supabase_url.trim(),
+            supabase_anon_key: newOrg.supabase_anon_key.trim()
+          });
+        }
 
-      // 2. Create Organization Profile Entry
-      await organizationService.create({
-        name: newOrg.name,
-        slug: slug,
-        country: newOrg.country,
-        plan: newOrg.plan,
-        status: 'active',
-        supabase_project_ref: newOrg.supabase_url.match(/https:\/\/(.*)\.supabase\.co/)?.[1] || ''
-      });
+        // 2. Update Organization Profile Entry
+        await organizationService.update(editingOrg.id, {
+          name: newOrg.name,
+          slug: slug,
+          country: newOrg.country,
+          plan: newOrg.plan,
+          supabase_project_ref: newOrg.supabase_url.match(/https:\/\/(.*)\.supabase\.co/)?.[1] || ''
+        });
 
-      // 3. Audit Log
-      await auditService.log(
-        `Created organization: ${newOrg.name} (${slug})`,
-        profile?.email || 'unknown',
-        'platform_admin',
-        'organization',
-        slug
-      );
+        // 3. Audit Log
+        await auditService.log(
+          `Updated organization: ${editingOrg.name} (${editingOrg.slug}) to ${newOrg.name} (${slug})`,
+          profile?.email || 'unknown',
+          'platform_admin',
+          'organization',
+          slug
+        );
+      } else {
+        // 1. Create Connection Entry
+        const connection = await tenantService.create({
+          company_name: newOrg.name,
+          company_slug: slug,
+          supabase_url: newOrg.supabase_url.trim(),
+          supabase_anon_key: newOrg.supabase_anon_key.trim()
+        });
+
+        // 2. Create Organization Profile Entry
+        await organizationService.create({
+          name: newOrg.name,
+          slug: slug,
+          country: newOrg.country,
+          plan: newOrg.plan,
+          status: 'active',
+          supabase_project_ref: newOrg.supabase_url.match(/https:\/\/(.*)\.supabase\.co/)?.[1] || ''
+        });
+
+        // 3. Audit Log
+        await auditService.log(
+          `Created organization: ${newOrg.name} (${slug})`,
+          profile?.email || 'unknown',
+          'platform_admin',
+          'organization',
+          slug
+        );
+      }
 
       // Reset & Reload
       setIsModalOpen(false);
+      setEditingOrg(null);
       setNewOrg({
         name: '',
         slug: '',
@@ -142,7 +198,18 @@ const Organizations: React.FC = () => {
           <p className="text-xs text-gray-500">Oversee, configure, and register client instances below.</p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingOrg(null);
+            setNewOrg({
+              name: '',
+              slug: '',
+              country: 'India',
+              plan: 'trial',
+              supabase_url: '',
+              supabase_anon_key: ''
+            });
+            setIsModalOpen(true);
+          }}
           className="flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-orange hover:bg-brand-orange/90 text-white rounded-xl text-sm font-bold transition-all shadow-md"
         >
           <Plus size={16} />
@@ -222,13 +289,22 @@ const Organizations: React.FC = () => {
                       {new Date(org.created_at).toLocaleDateString()}
                     </td>
                     <td className="p-5 text-right">
-                      <button
-                        onClick={() => handleDeleteOrg(org.id, org.slug, org.name)}
-                        className="p-2 rounded-lg border border-red-200 bg-red-50/50 text-red-500 hover:bg-red-100/50 transition-all"
-                        title="Delete Tenant"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEditClick(org)}
+                          className="p-2 rounded-lg border border-brand-orange/20 bg-brand-orange/5 text-brand-orange hover:bg-brand-orange/10 transition-all"
+                          title="Edit Tenant"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteOrg(org.id, org.slug, org.name)}
+                          className="p-2 rounded-lg border border-red-200 bg-red-50/50 text-red-500 hover:bg-red-100/50 transition-all"
+                          title="Delete Tenant"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -250,10 +326,10 @@ const Organizations: React.FC = () => {
             </button>
             <h3 className="text-lg font-bold text-brand-navy mb-2 flex items-center gap-2">
               <Cpu size={20} className="text-brand-orange" />
-              <span>Provision New Tenant Project</span>
+              <span>{editingOrg ? 'Edit Tenant Connection' : 'Provision New Tenant Project'}</span>
             </h3>
             <p className="text-xs text-gray-500 mb-6">
-              Connect a dedicated Supabase project to the VyaraHR platform instance.
+              {editingOrg ? 'Modify connections details and metadata for this organization.' : 'Connect a dedicated Supabase project to the VyaraHR platform instance.'}
             </p>
 
             <form onSubmit={handleCreateOrg} className="space-y-4">
@@ -361,7 +437,7 @@ const Organizations: React.FC = () => {
                   disabled={submitLoading}
                   className="px-6 py-2.5 bg-brand-orange hover:bg-brand-orange/90 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all"
                 >
-                  {submitLoading ? 'Registering...' : 'Provision Tenant →'}
+                  {submitLoading ? 'Saving...' : editingOrg ? 'Save Connection' : 'Provision Tenant →'}
                 </button>
               </div>
             </form>
