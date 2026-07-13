@@ -22,3 +22,5 @@ CREATE POLICY "global_settings_select" ON global_settings
   FOR SELECT USING (true);
 CREATE POLICY "global_settings_update" ON global_settings
   FOR UPDATE USING (true);
+CREATE POLICY "global_settings_insert" ON global_settings
+  FOR INSERT WITH CHECK (true);
