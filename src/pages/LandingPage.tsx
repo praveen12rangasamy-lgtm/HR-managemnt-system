@@ -1025,7 +1025,7 @@ const LandingPage: React.FC = () => {
                 required
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px', width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', width: '100%' }}>
               <button type="button" className="form-forgot" onClick={() => openModal('forgotPasswordModal')}>Forgot password?</button>
             </div>
             <button className="modal-btn accent" type="submit" disabled={loading}>
@@ -1075,7 +1075,7 @@ const LandingPage: React.FC = () => {
                 autoComplete="current-password"
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px', width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', width: '100%' }}>
               <button type="button" className="form-forgot" onClick={() => openModal('forgotPasswordModal')}>Forgot password?</button>
             </div>
             <button className="modal-btn" type="submit" disabled={loading}>
