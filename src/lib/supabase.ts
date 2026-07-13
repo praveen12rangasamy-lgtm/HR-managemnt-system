@@ -52,6 +52,18 @@ export const getSupabase = (): SupabaseClient => activeClient;
 // Export active URL for debugging
 export const getActiveUrl = (): string => activeUrl;
 
+// Expose current tenant metadata for UI
+export const getTenantMeta = () => ({
+  url: activeUrl,
+  key: activeKey,
+  slug: localStorage.getItem('selected_tenant_slug') || '',
+  name: localStorage.getItem('selected_tenant_name') || '',
+});
+
+// Check if currently operating in Platform Admin mode (connected directly to Master Router)
+export const isPlatformMode = (): boolean => activeUrl === masterUrl;
+
+
 // Dynamic client proxy to delegate all calls to the active client at runtime
 // This ensures auth, from(), storage, etc. always use the latest activeClient
 export const supabase = new Proxy({} as SupabaseClient, {

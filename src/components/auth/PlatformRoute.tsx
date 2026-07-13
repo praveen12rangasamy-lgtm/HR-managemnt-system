@@ -2,6 +2,8 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../hooks/usePlatform';
+import { useTenant } from '../../hooks/useTenant';
+
 
 interface PlatformRouteProps {
   children: React.ReactNode;
@@ -10,15 +12,17 @@ interface PlatformRouteProps {
 const PlatformRoute: React.FC<PlatformRouteProps> = ({ children }) => {
   const { session, profile, loading } = useAuth();
   const { isPlatformMode, isPlatformAdmin } = usePlatform();
+  const { isReady } = useTenant();
   const location = useLocation();
 
-  if (loading) {
+  if (loading || !isReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-navy" style={{ backgroundColor: '#1A0D00' }}>
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-teal" style={{ borderColor: '#FF5900' }}></div>
+      <div className="min-h-screen flex items-center justify-center bg-[#1A0D00]" style={{ backgroundColor: '#1A0D00' }}>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF5900]"></div>
       </div>
     );
   }
+
 
   // If no auth session or profile, send to landing
   if (!session || !profile) {

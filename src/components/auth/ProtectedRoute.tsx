@@ -25,6 +25,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
+  // Redirect Platform Admins to platform dashboard
+  if (profile?.role === 'platform_admin') {
+    return <Navigate to="/platform" replace />;
+  }
+
+
   // Handle Super Admin / Owner-only routes
   if (requireSuperAdmin && profile?.role !== 'superadmin' && profile?.role !== 'owner') {
     return <Navigate to="/dashboard" replace />;

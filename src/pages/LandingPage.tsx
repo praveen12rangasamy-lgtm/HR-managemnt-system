@@ -115,7 +115,11 @@ const LandingPage: React.FC = () => {
     // Only automatically redirect if a valid session already exists on page mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/dashboard');
+        if (isPlatformMode()) {
+          navigate('/platform');
+        } else {
+          navigate('/dashboard');
+        }
       }
     });
   }, []);
