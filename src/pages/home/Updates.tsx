@@ -20,6 +20,8 @@ interface Job {
   description: string;
   summary?: string;
   eligibility?: string;
+  vacancy?: string | number;
+  experience?: string;
 }
 
 const Updates = () => {
@@ -33,8 +35,8 @@ const Updates = () => {
   const [editingJob, setEditingJob] = useState<Job | null>(null);
 
   const defaultJobs = [
-    { id: 1, title: 'Senior React Developer', department: 'Engineering', type: 'Remote', salary: '₹ 12L - 15L', status: 'Active', Applied: 4, description: 'We are looking for a senior developer to lead our frontend initiatives.' },
-    { id: 2, title: 'UX Designer', department: 'Design', type: 'Full-time', salary: '₹ 8L - 10L', status: 'Active', Applied: 2, description: 'Join our design team to create world-class HR experiences.' }
+    { id: 1, title: 'Senior React Developer', department: 'Engineering', type: 'Remote', salary: '₹ 12L - 15L', status: 'Active', Applied: 4, description: 'We are looking for a senior developer to lead our frontend initiatives.', vacancy: 2, experience: '5+ years' },
+    { id: 2, title: 'UX Designer', department: 'Design', type: 'Full-time', salary: '₹ 8L - 10L', status: 'Active', Applied: 2, description: 'Join our design team to create world-class HR experiences.', vacancy: 1, experience: '2+ years' }
   ];
 
   // Scoped loading
@@ -90,7 +92,9 @@ const Updates = () => {
       Applied: 0,
       description: formData.get('summary') as string || 'New job opening created by admin.',
       summary: formData.get('summary') as string,
-      eligibility: formData.get('eligibility') as string
+      eligibility: formData.get('eligibility') as string,
+      vacancy: formData.get('vacancy') as string,
+      experience: formData.get('experience') as string
     };
     const updatedJobs = [newJob, ...jobs];
     setJobs(updatedJobs);
@@ -137,6 +141,8 @@ const Updates = () => {
             department: formData.get('editDept') as string,
             type: formData.get('editType') as string,
             salary: `₹ ${formData.get('editMin')} - ${formData.get('editMax')}`,
+            vacancy: formData.get('editVacancy') as string,
+            experience: formData.get('editExperience') as string
           }
         : j
     ));
@@ -165,6 +171,8 @@ const Updates = () => {
       ["Department:", job.department],
       ["Salary Range:", job.salary],
       ["Employment Type:", job.type],
+      ["Experience:", job.experience || "N/A"],
+      ["Vacancy Count:", String(job.vacancy || "N/A")],
     ];
     
     let yPos = 50;
@@ -208,7 +216,7 @@ const Updates = () => {
     setTimeout(() => setToast(''), 3000);
   };
 
-  if (profile?.role !== 'admin') {
+  if (profile?.role !== 'admin' && profile?.role !== 'superadmin') {
     return (
       <div className="space-y-8 max-w-6xl">
         <header className="space-y-2">
@@ -271,6 +279,8 @@ const Updates = () => {
                     <div>
                       <p className="text-xs text-brand-teal font-semibold">{job.department}</p>
                       <p className="text-xs text-gray-500 mt-1">{job.salary}</p>
+                      {job.experience && <p className="text-[10px] text-gray-400 mt-1">Exp: {job.experience}</p>}
+                      {job.vacancy && <p className="text-[10px] text-gray-400">Vacancy: {job.vacancy}</p>}
                     </div>
                     <Button className="w-full text-xs h-9 mt-2">Refer & Apply</Button>
                   </CardContent>
@@ -429,6 +439,16 @@ const Updates = () => {
                     <option>Freelancer</option>
                   </select>
                 </div>
+
+                <div>
+                  <label htmlFor="create-job-vacancy" className="block text-sm font-medium text-gray-700 mb-1">Vacancy</label>
+                  <input id="create-job-vacancy" name="vacancy" type="number" min="1" className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal" placeholder="e.g. 3" required />
+                </div>
+                
+                <div>
+                  <label htmlFor="create-job-experience" className="block text-sm font-medium text-gray-700 mb-1">Experience Required</label>
+                  <input id="create-job-experience" name="experience" type="text" className="w-full border border-gray-300 rounded-md p-2 focus:ring-brand-teal focus:border-brand-teal" placeholder="e.g. 2-5 years" required />
+                </div>
               </div>
             </div>
 
@@ -466,6 +486,8 @@ const Updates = () => {
                   <th className="px-6 py-3">Department</th>
                   <th className="px-6 py-3">Type</th>
                   <th className="px-6 py-3">Salary</th>
+                  <th className="px-6 py-3">Exp</th>
+                  <th className="px-6 py-3">Vacancy</th>
                   <th className="px-6 py-3">Applied</th>
                   <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3 text-right">Actions</th>
@@ -480,6 +502,8 @@ const Updates = () => {
                     <td className="px-6 py-4">{job.department}</td>
                     <td className="px-6 py-4">{job.type}</td>
                     <td className="px-6 py-4 text-gray-600">{job.salary}</td>
+                    <td className="px-6 py-4 text-gray-500">{job.experience || 'N/A'}</td>
+                    <td className="px-6 py-4 text-gray-500">{job.vacancy || 'N/A'}</td>
                     <td className="px-6 py-4 font-bold text-brand-teal">{job.Applied}</td>
                     <td className="px-6 py-4">
                       <button
@@ -535,6 +559,8 @@ const Updates = () => {
                     <th className="px-6 py-3">Department</th>
                     <th className="px-6 py-3">Type</th>
                     <th className="px-6 py-3">Salary</th>
+                    <th className="px-6 py-3">Exp</th>
+                    <th className="px-6 py-3">Vacancy</th>
                     <th className="px-6 py-3">Status</th>
                     <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
@@ -546,6 +572,8 @@ const Updates = () => {
                       <td className="px-6 py-4 text-gray-500">{job.department}</td>
                       <td className="px-6 py-4 text-gray-500">{job.type}</td>
                       <td className="px-6 py-4 text-gray-400">{job.salary}</td>
+                      <td className="px-6 py-4 text-gray-400">{job.experience || 'N/A'}</td>
+                      <td className="px-6 py-4 text-gray-400">{job.vacancy || 'N/A'}</td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500 transition-colors">
                           Closed
@@ -610,6 +638,16 @@ const Updates = () => {
                   <div>
                     <label htmlFor="edit-job-max" className="block text-sm font-medium text-gray-700 mb-1">Max Salary</label>
                     <input id="edit-job-max" name="editMax" defaultValue={editingJob.salary?.split(' - ')[1]} className="w-full border border-gray-300 rounded-md p-2 text-sm" required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="edit-job-vacancy" className="block text-sm font-medium text-gray-700 mb-1">Vacancy</label>
+                    <input id="edit-job-vacancy" name="editVacancy" type="number" min="1" defaultValue={editingJob.vacancy} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" required />
+                  </div>
+                  <div>
+                    <label htmlFor="edit-job-experience" className="block text-sm font-medium text-gray-700 mb-1">Experience Required</label>
+                    <input id="edit-job-experience" name="editExperience" type="text" defaultValue={editingJob.experience} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-brand-teal" required />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-2">
