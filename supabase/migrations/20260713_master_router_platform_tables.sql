@@ -70,15 +70,23 @@ CREATE POLICY "platform_users_select" ON platform_users
   FOR SELECT USING (true); -- anon can select (needed for login check)
 
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "organizations_select" ON organizations
-  FOR SELECT USING (true);
-CREATE POLICY "organizations_insert" ON organizations
-  FOR INSERT WITH CHECK (true);
-CREATE POLICY "organizations_update" ON organizations
-  FOR UPDATE USING (true);
+CREATE POLICY "organizations_select" ON organizations FOR SELECT USING (true);
+CREATE POLICY "organizations_insert" ON organizations FOR INSERT WITH CHECK (true);
+CREATE POLICY "organizations_update" ON organizations FOR UPDATE USING (true);
+CREATE POLICY "organizations_delete" ON organizations FOR DELETE USING (true);
+
+-- 5. tenant_connections RLS policies (Gateway)
+ALTER TABLE tenant_connections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_connections_select" ON tenant_connections;
+CREATE POLICY "tenant_connections_select" ON tenant_connections FOR SELECT USING (true);
+DROP POLICY IF EXISTS "tenant_connections_insert" ON tenant_connections;
+CREATE POLICY "tenant_connections_insert" ON tenant_connections FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "tenant_connections_update" ON tenant_connections;
+CREATE POLICY "tenant_connections_update" ON tenant_connections FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "tenant_connections_delete" ON tenant_connections;
+CREATE POLICY "tenant_connections_delete" ON tenant_connections FOR DELETE USING (true);
 
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "audit_logs_insert" ON audit_logs
-  FOR INSERT WITH CHECK (true);
-CREATE POLICY "audit_logs_select" ON audit_logs
-  FOR SELECT USING (true);
+CREATE POLICY "audit_logs_insert" ON audit_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "audit_logs_select" ON audit_logs FOR SELECT USING (true);
+
