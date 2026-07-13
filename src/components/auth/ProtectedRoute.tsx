@@ -25,17 +25,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin 
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  // Handle Super Admin-only routes
-  if (requireSuperAdmin && profile?.role !== 'superadmin') {
+  // Handle Super Admin / Owner-only routes
+  if (requireSuperAdmin && profile?.role !== 'superadmin' && profile?.role !== 'owner') {
     return <Navigate to="/dashboard" replace />;
   }
 
   // Handle Admin-only routes
-  if (requireAdmin && profile?.role !== 'admin' && profile?.role !== 'superadmin') {
+  if (requireAdmin && profile?.role !== 'admin' && profile?.role !== 'superadmin' && profile?.role !== 'owner') {
     return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
+
 };
 
 export default ProtectedRoute;

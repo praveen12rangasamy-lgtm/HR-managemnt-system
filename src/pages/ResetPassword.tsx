@@ -48,8 +48,17 @@ const ResetPassword: React.FC = () => {
   };
 
   return (
-    <div className="landing-body" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f2d52' }}>
-      <div className="modal" style={{ position: 'relative', transform: 'none', margin: 0, opacity: 1, pointerEvents: 'auto' }}>
+    <div className="landing-body" style={{ minHeight: '100vh' }}>
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        zIndex: 1,
+        padding: '40px 20px',
+      }}>
+        <div className="modal" style={{ position: 'relative', transform: 'none', opacity: 1, pointerEvents: 'auto', margin: '0 auto' }}>
         <div className="modal-logo">
           <img src="/logo.png" alt="VyaraHR" />
         </div>
@@ -99,6 +108,7 @@ const ResetPassword: React.FC = () => {
             </button>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

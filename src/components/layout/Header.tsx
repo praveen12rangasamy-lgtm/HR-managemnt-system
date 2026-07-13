@@ -13,7 +13,7 @@ const Header: React.FC<HeaderProps> = ({ isMobile }) => {
   const { profile } = useAuth();
   const path = location.pathname;
   const isAdmin = profile?.role === 'admin';
-  const isSuperAdmin = profile?.role === 'superadmin';
+  const isSuperAdmin = profile?.role === 'superadmin' || profile?.role === 'owner';
   const [notifCount, setNotifCount] = useState(0);
 
   useEffect(() => {

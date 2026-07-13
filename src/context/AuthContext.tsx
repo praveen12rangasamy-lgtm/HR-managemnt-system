@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, masterSupabase, isPlatformMode } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -49,31 +49,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchProfile = async (currentUser: User) => {
     setLoading(true);
 
-    // Super Admin bypass
-    const superAdmins = ['superadmin@vyarahr.com', 'superadmin@gmail.com', 'praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
-    if (currentUser.email && superAdmins.includes(currentUser.email.trim().toLowerCase())) {
-      const superProfile = {
-        id: currentUser.id,
-        full_name: currentUser.user_metadata?.full_name || 'Super Admin',
-        email: currentUser.email || '',
-        role: 'superadmin',
-        designation: 'Super Administrator',
-        department: 'Management'
-      };
-      setProfile(superProfile);
+    // 1. Platform Mode check: if connected to Master Router, verify in platform_users
+    if (isPlatformMode()) {
+      try {
+        const { data: platformUser, error: platformErr } = await masterSupabase
+          .from('platform_users')
+          .select('*')
+          .eq('email', currentUser.email?.trim().toLowerCase())
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (platformErr) {
+          console.error('Error fetching platform admin:', platformErr);
+        }
+
+        if (platformUser) {
+          const platformProfile = {
+            id: currentUser.id,
+            full_name: platformUser.full_name,
+            email: platformUser.email,
+            role: 'platform_admin',
+            designation: 'Platform Administrator',
+            department: 'Platform Operations'
+          };
+          setProfile(platformProfile);
+          setLoading(false);
+          return;
+        } else {
+          // If in platform mode but user is not a platform admin, deny access
+          console.warn('Unauthorized platform login attempt.');
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Exception during platform user fetch:', err);
+      }
+    }
+
+    // 2. Organization Mode: Query profiles table from active tenant
+    const { data: tenantProfile, error: tenantErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('email', currentUser.email?.trim().toLowerCase())
+      .maybeSingle();
+
+    if (!tenantErr && tenantProfile) {
+      setProfile(tenantProfile);
       setLoading(false);
-      
-      // Use onConflict:'email' so if a row with this email already exists (possibly with a
-      // different id from a previous session), it updates that row's id to match the current
-      // auth.uid(). This keeps auth.uid() == profiles.id in sync for RLS to work correctly.
-      supabase
-        .from('profiles')
-        .upsert(superProfile, { onConflict: 'email' })
-        .then(({ error }) => {
-          if (error) console.warn('Background superadmin profile sync note:', error.message);
-        });
       return;
     }
+
 
     const { data, error } = await supabase
       .from('profiles')

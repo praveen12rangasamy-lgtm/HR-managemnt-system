@@ -35,7 +35,15 @@ import Performance from './pages/performance/Performance';
 import LandingPage from './pages/LandingPage';
 import ResetPassword from './pages/ResetPassword';
 import { AuthProvider } from './context/AuthContext';
+import { TenantProvider } from './context/TenantContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import PlatformRoute from './components/auth/PlatformRoute';
+import PlatformLayout from './components/layout/PlatformLayout';
+import PlatformDashboard from './pages/platform/PlatformDashboard';
+import Organizations from './pages/platform/Organizations';
+import PlatformUsers from './pages/platform/PlatformUsers';
+import AuditLogs from './pages/platform/AuditLogs';
+import GlobalSettings from './pages/platform/GlobalSettings';
 
 import { useEffect } from 'react';
 
@@ -59,11 +67,25 @@ function App() {
 
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public Landing Page */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+      <TenantProvider>
+        <Router>
+          <Routes>
+            {/* Public Landing Page */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            
+            {/* Platform Mode Routes */}
+            <Route path="/platform" element={
+              <PlatformRoute>
+                <PlatformLayout />
+              </PlatformRoute>
+            }>
+              <Route index element={<PlatformDashboard />} />
+              <Route path="organizations" element={<Organizations />} />
+              <Route path="users" element={<PlatformUsers />} />
+              <Route path="audit-logs" element={<AuditLogs />} />
+              <Route path="settings" element={<GlobalSettings />} />
+            </Route>
           
           {/* Protected Dashboard Routes */}
           <Route path="/dashboard" element={
@@ -146,6 +168,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
+      </TenantProvider>
     </AuthProvider>
   );
 }

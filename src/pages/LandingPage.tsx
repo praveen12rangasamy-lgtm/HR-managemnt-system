@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LandingPage.css';
-import { supabase, masterSupabase, switchTenant, resetTenant, DEFAULT_URL, DEFAULT_KEY } from '../lib/supabase';
+import { supabase, masterSupabase, switchTenant, resetTenant, DEFAULT_URL, DEFAULT_KEY, isPlatformMode } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendEmail } from '../lib/resend';
 import { Search, ChevronDown } from 'lucide-react';
@@ -161,6 +161,16 @@ const LandingPage: React.FC = () => {
       return;
     }
 
+    if (slug === 'vyarahr-platform') {
+      switchTenant('https://nxtjqpehfdutqnvbaodb.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54dGpxcGVoZmR1dHFudmJhb2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4MzI1MDYsImV4cCI6MjA5OTQwODUwNn0.J4jb1IorRLAGoKTF80fIbToDkmCvNDjXVNXwha-W-vs');
+      localStorage.setItem('selected_tenant_slug', 'vyarahr-platform');
+      localStorage.setItem('selected_tenant_name', 'VyaraHR Platform');
+      setSelectedCompany({ name: 'VyaraHR Platform', slug: 'vyarahr-platform' });
+      setActiveModal('adminModal');
+      setLoading(false);
+      return;
+    }
+
     try {
       // Query the Master Router for the tenant connection details
       const { data, error: lookupError } = await masterSupabase
@@ -222,67 +232,98 @@ const LandingPage: React.FC = () => {
       }
 
       let targetEmail = '';
-      const superAdmins = ['superadmin@vyarahr.com', 'superadmin@gmail.com', 'praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
 
-      if (inputId.includes('@')) {
-        const emailToCheck = inputId.toLowerCase();
-        if (superAdmins.includes(emailToCheck)) {
-          targetEmail = emailToCheck;
+      if (isPlatformMode()) {
+        const emailToCheck = inputId.includes('@') ? inputId.toLowerCase() : '';
+        if (!emailToCheck) {
+          setError('Platform Administrators must log in using their email address.');
+          setLoading(false);
+          return;
+        }
+
+        const { data: platformUser, error: platformErr } = await masterSupabase
+          .from('platform_users')
+          .select('email, role')
+          .eq('email', emailToCheck)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (platformErr) {
+          setError('Database error while looking up Platform Admin account.');
+          setLoading(false);
+          return;
+        }
+
+        if (!platformUser) {
+          setError('No active Platform Administrator account found with this email.');
+          setLoading(false);
+          return;
+        }
+
+        targetEmail = platformUser.email;
+      } else {
+        const superAdmins = ['superadmin@vyarahr.com', 'superadmin@gmail.com', 'praveen12rangasamy@gmail.com', 'pranavanandan18@gmail.com', 'pranavananthan18@gmail.com', 'jin@gmail.com'];
+
+        if (inputId.includes('@')) {
+          const emailToCheck = inputId.toLowerCase();
+          if (superAdmins.includes(emailToCheck)) {
+            targetEmail = emailToCheck;
+          } else {
+            // Look up the admin's profile from email
+            const { data: profile, error: lookupError } = await supabase
+              .from('profiles')
+              .select('email, role')
+              .eq('email', emailToCheck)
+              .maybeSingle();
+
+            if (lookupError) {
+              setError('Database error while looking up administrator email.');
+              setLoading(false);
+              return;
+            }
+
+            if (!profile) {
+              setError('No administrator account found with this email.');
+              setLoading(false);
+              return;
+            }
+
+            if (profile.role !== 'admin' && profile.role !== 'superadmin' && profile.role !== 'owner') {
+              setError('This email does not belong to an administrator account.');
+              setLoading(false);
+              return;
+            }
+
+            targetEmail = profile.email;
+          }
         } else {
-          // Look up the admin's profile from email
+          // Look up the admin's email from their Employee ID in the database
           const { data: profile, error: lookupError } = await supabase
             .from('profiles')
             .select('email, role')
-            .eq('email', emailToCheck)
+            .eq('employee_id', inputId)
             .maybeSingle();
 
           if (lookupError) {
-            setError('Database error while looking up administrator email.');
+            setError('Database error while looking up Employee ID.');
             setLoading(false);
             return;
           }
 
           if (!profile) {
-            setError('No administrator account found with this email.');
+            setError('No administrator account found with this Employee ID.');
             setLoading(false);
             return;
           }
 
-          if (profile.role !== 'admin' && profile.role !== 'superadmin') {
-            setError('This email does not belong to an administrator account.');
+          if (profile.role !== 'admin' && profile.role !== 'superadmin' && profile.role !== 'owner') {
+            setError('This Employee ID does not belong to an administrator account.');
             setLoading(false);
             return;
           }
 
           targetEmail = profile.email;
         }
-      } else {
-        // Look up the admin's email from their Employee ID in the database
-        const { data: profile, error: lookupError } = await supabase
-          .from('profiles')
-          .select('email, role')
-          .eq('employee_id', inputId)
-          .maybeSingle();
-
-        if (lookupError) {
-          setError('Database error while looking up Employee ID.');
-          setLoading(false);
-          return;
-        }
-
-        if (!profile) {
-          setError('No administrator account found with this Employee ID.');
-          setLoading(false);
-          return;
-        }
-
-        if (profile.role !== 'admin' && profile.role !== 'superadmin') {
-          setError('This Employee ID does not belong to an administrator account.');
-          setLoading(false);
-          return;
-        }
-
-        targetEmail = profile.email;
       }
 
       // Sign in via Supabase Auth using the resolved email
@@ -297,7 +338,11 @@ const LandingPage: React.FC = () => {
         return;
       }
 
-      navigate('/dashboard');
+      if (isPlatformMode()) {
+        navigate('/platform');
+      } else {
+        navigate('/dashboard');
+      }
       closeModals();
     } catch (err: any) {
       console.error('Admin login system error:', err);

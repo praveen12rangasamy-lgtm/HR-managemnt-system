@@ -11,7 +11,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isTablet }) => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const isAdmin = profile?.role === 'admin';
-  const isSuperAdmin = profile?.role === 'superadmin';
+  const isSuperAdmin = profile?.role === 'superadmin' || profile?.role === 'owner';
 
   const navItems = [
     { name: 'Home', icon: Home, path: '/dashboard' },
@@ -71,8 +71,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isTablet }) => {
           {!isTablet && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-white truncate">{profile?.full_name || 'User'}</p>
-              <p className={`text-xs text-gray-400 truncate tracking-widest ${profile?.role === 'superadmin' ? 'lowercase' : 'uppercase'}`}>
-                {profile?.role === 'superadmin' ? 'super admin' : (profile?.role || 'Member')}
+              <p className={`text-xs text-gray-400 truncate tracking-widest ${isSuperAdmin ? 'lowercase' : 'uppercase'}`}>
+                {isSuperAdmin ? 'super admin' : (profile?.role || 'Member')}
               </p>
             </div>
           )}

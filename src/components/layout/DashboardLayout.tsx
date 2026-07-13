@@ -11,7 +11,7 @@ const DashboardLayout = () => {
   const location = useLocation();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
-  const isSuperAdmin = profile?.role === 'superadmin';
+  const isSuperAdmin = profile?.role === 'superadmin' || profile?.role === 'owner';
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
