@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, HelpCircle, Cpu, FileText } from 'lucide-react';
+import { Building2, Plus, Search, HelpCircle, Cpu, FileText, Trash2 } from 'lucide-react';
 import { organizationService } from '../../services/organizationService';
 import { tenantService } from '../../services/tenantService';
 import { auditService } from '../../services/auditService';
@@ -100,6 +100,34 @@ const Organizations: React.FC = () => {
     }
   };
 
+  const handleDeleteOrg = async (id: string, slug: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete organization "${name}" (${slug})? This will remove its connection entry from the Platform directory.`)) {
+      return;
+    }
+
+    try {
+      // Find the tenant connection id
+      const conn = await tenantService.getBySlug(slug);
+      if (conn) {
+        await tenantService.delete(conn.id);
+      }
+      await organizationService.delete(id);
+
+      await auditService.log(
+        `Deleted organization: ${name} (${slug})`,
+        profile?.email || 'unknown',
+        'platform_admin',
+        'organization',
+        slug
+      );
+
+      fetchOrgs();
+    } catch (err: any) {
+      console.error('Failed to delete organization:', err);
+      alert(err.message || 'Failed to delete organization.');
+    }
+  };
+
   const filteredOrgs = orgs.filter(o => 
     o.name.toLowerCase().includes(search.toLowerCase()) || 
     o.slug.toLowerCase().includes(search.toLowerCase())
@@ -155,6 +183,7 @@ const Organizations: React.FC = () => {
                   <th className="p-5">Status</th>
                   <th className="p-5">Country</th>
                   <th className="p-5">Created At</th>
+                  <th className="p-5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
@@ -189,8 +218,17 @@ const Organizations: React.FC = () => {
                     <td className="p-5 text-gray-500 text-xs">
                       {org.country || 'N/A'}
                     </td>
-                    <td className="p-5 text-gray-500 text-xs">
+                    <td className="p-5 text-gray-500 text-xs font-semibold">
                       {new Date(org.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="p-5 text-right">
+                      <button
+                        onClick={() => handleDeleteOrg(org.id, org.slug, org.name)}
+                        className="p-2 rounded-lg border border-red-200 bg-red-50/50 text-red-500 hover:bg-red-100/50 transition-all"
+                        title="Delete Tenant"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))}
