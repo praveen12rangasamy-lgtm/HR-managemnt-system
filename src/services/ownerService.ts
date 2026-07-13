@@ -1,4 +1,4 @@
-import { masterSupabase, createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { tenantService } from './tenantService';
 
 export const ownerService = {
