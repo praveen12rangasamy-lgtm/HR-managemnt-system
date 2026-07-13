@@ -20,12 +20,12 @@ const PlatformLayout = () => {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen bg-[#1A0D00] relative text-[#FFFBDC]">
+    <div className="min-h-screen bg-brand-bg relative text-brand-navy">
       {/* HAMBURGER BUTTON (Mobile Only) */}
       {isMobile && (
         <button 
           onClick={() => setIsDrawerOpen(true)}
-          className="fixed top-3 left-4 z-[1100] w-9 h-9 rounded-lg bg-[#FF5900]/10 border border-[#FF5900]/20 text-[#FF5900] flex items-center justify-center shadow-lg"
+          className="fixed top-3 left-4 z-[1100] w-9 h-9 rounded-lg bg-brand-orange/10 border border-brand-orange/20 text-brand-orange flex items-center justify-center shadow-lg"
           aria-label="Open Platform Menu"
           title="Open Platform Menu"
         >
@@ -57,8 +57,6 @@ const PlatformLayout = () => {
       `}>
         <PlatformHeader isMobile={isMobile} />
         <main className={`flex-1 ${isMobile ? 'p-4' : 'p-8'} relative z-0`}>
-          {/* Subtle grid pattern background like landing page */}
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,89,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,89,0,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none z-[-1]" />
           <Outlet />
         </main>
       </div>
@@ -67,3 +65,4 @@ const PlatformLayout = () => {
 };
 
 export default PlatformLayout;
+

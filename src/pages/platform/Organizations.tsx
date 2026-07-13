@@ -110,12 +110,12 @@ const Organizations: React.FC = () => {
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-[#FFFBDC]">Registered Tenants</h2>
-          <p className="text-xs text-[#BAA290]">Oversee, configure, and register client instances below.</p>
+          <h2 className="text-xl font-bold text-brand-navy">Registered Tenants</h2>
+          <p className="text-xs text-gray-500">Oversee, configure, and register client instances below.</p>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-[#FF5900] hover:bg-[#FF8237] text-[#FFFBDC] rounded-xl text-sm font-bold transition-all shadow-md"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-orange hover:bg-brand-orange/90 text-white rounded-xl text-sm font-bold transition-all shadow-md"
         >
           <Plus size={16} />
           <span>Provision Tenant</span>
@@ -123,32 +123,32 @@ const Organizations: React.FC = () => {
       </div>
 
       {/* Searchbar */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-[#261300] border border-[#FF5900]/15 rounded-xl max-w-md">
-        <Search size={18} className="text-[#BAA290]" />
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-white border border-gray-200 rounded-xl max-w-md shadow-sm">
+        <Search size={18} className="text-gray-400" />
         <input
           type="text"
           placeholder="Filter organizations by name or slug..."
-          className="bg-transparent border-none outline-none text-sm text-[#FFFBDC] placeholder-[#BAA290] w-full"
+          className="bg-transparent border-none outline-none text-sm text-brand-navy placeholder-gray-400 w-full"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {/* Main List */}
-      <div className="bg-[#261300] border border-[#FF5900]/15 rounded-3xl overflow-hidden shadow-lg">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#FF5900]"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-orange"></div>
           </div>
         ) : filteredOrgs.length === 0 ? (
-          <div className="p-12 text-center text-[#BAA290] text-sm">
+          <div className="p-12 text-center text-gray-500 text-sm">
             No registered organizations found matching your search.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#FF5900]/15 text-xs text-[#BAA290] font-bold bg-[#1A0D00]/40">
+                <tr className="border-b border-gray-200 text-xs text-gray-500 font-bold bg-gray-50/50">
                   <th className="p-5">Name & Code</th>
                   <th className="p-5">Project Ref / Endpoint</th>
                   <th className="p-5">Plan</th>
@@ -157,39 +157,39 @@ const Organizations: React.FC = () => {
                   <th className="p-5">Created At</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#FF5900]/10 text-sm">
+              <tbody className="divide-y divide-gray-100 text-sm">
                 {filteredOrgs.map((org) => (
-                  <tr key={org.id} className="hover:bg-[#FF5900]/5 transition-colors">
+                  <tr key={org.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="p-5">
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-[#FF5900]/10 text-[#FF5900] rounded-xl">
+                        <div className="p-2.5 bg-brand-orange/10 text-brand-orange rounded-xl">
                           <Building2 size={16} />
                         </div>
                         <div>
-                          <p className="font-bold text-[#FFFBDC]">{org.name}</p>
-                          <p className="text-[10px] text-[#FF5900] font-mono tracking-wider uppercase mt-0.5">{org.slug}</p>
+                          <p className="font-bold text-brand-navy">{org.name}</p>
+                          <p className="text-[10px] text-brand-orange font-mono tracking-wider uppercase font-bold mt-0.5">{org.slug}</p>
                         </div>
                       </div>
                     </td>
                     <td className="p-5">
-                      <p className="text-xs text-[#BAA290] font-mono max-w-[200px] truncate" title={org.supabase_project_ref}>
+                      <p className="text-xs text-gray-500 font-mono max-w-[200px] truncate" title={org.supabase_project_ref}>
                         {org.supabase_project_ref || 'Local / Custom'}
                       </p>
                     </td>
                     <td className="p-5">
-                      <span className="px-2.5 py-0.5 bg-[#FF5900]/10 border border-[#FF5900]/25 text-[#FF5900] rounded-full text-xs font-semibold uppercase">
+                      <span className="px-2.5 py-0.5 bg-brand-orange/10 border border-brand-orange/20 text-brand-orange rounded-full text-xs font-bold uppercase tracking-wider">
                         {org.plan}
                       </span>
                     </td>
                     <td className="p-5">
-                      <span className="px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded-full text-xs font-semibold uppercase">
+                      <span className="px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 rounded-full text-xs font-bold uppercase tracking-wider">
                         {org.status}
                       </span>
                     </td>
-                    <td className="p-5 text-[#BAA290] text-xs">
+                    <td className="p-5 text-gray-500 text-xs">
                       {org.country || 'N/A'}
                     </td>
-                    <td className="p-5 text-[#BAA290] text-xs">
+                    <td className="p-5 text-gray-500 text-xs">
                       {new Date(org.created_at).toLocaleDateString()}
                     </td>
                   </tr>
@@ -202,33 +202,33 @@ const Organizations: React.FC = () => {
 
       {/* PROVISIONING MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
-          <div className="bg-[#261300] border border-[#FF5900]/20 rounded-3xl p-6 w-full max-w-xl shadow-2xl relative animate-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-xl shadow-2xl relative animate-in zoom-in duration-200 text-brand-navy">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-[#BAA290] hover:text-[#FFFBDC] text-lg"
+              className="absolute top-4 right-4 text-gray-400 hover:text-brand-navy text-lg font-bold"
             >
               ✕
             </button>
-            <h3 className="text-lg font-bold text-[#FFFBDC] mb-2 flex items-center gap-2">
-              <Cpu size={20} className="text-[#FF5900]" />
+            <h3 className="text-lg font-bold text-brand-navy mb-2 flex items-center gap-2">
+              <Cpu size={20} className="text-brand-orange" />
               <span>Provision New Tenant Project</span>
             </h3>
-            <p className="text-xs text-[#BAA290] mb-6">
+            <p className="text-xs text-gray-500 mb-6">
               Connect a dedicated Supabase project to the VyaraHR platform instance.
             </p>
 
             <form onSubmit={handleCreateOrg} className="space-y-4">
-              {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs">{error}</div>}
+              {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-xs">{error}</div>}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-[#BAA290]">Organization Name</label>
+                  <label className="text-xs font-bold text-gray-600">Organization Name</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Marabanu Group"
-                    className="w-full bg-[#1A0D00] border border-[#FF5900]/25 rounded-xl px-4 py-2.5 text-sm text-[#FFFBDC] outline-none focus:border-[#FF5900] transition-colors"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all"
                     value={newOrg.name}
                     onChange={(e) => {
                       const name = e.target.value;
@@ -239,12 +239,12 @@ const Organizations: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-[#BAA290]">Company Code (Slug)</label>
+                  <label className="text-xs font-bold text-gray-600">Company Code (Slug)</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. marabanu"
-                    className="w-full bg-[#1A0D00] border border-[#FF5900]/25 rounded-xl px-4 py-2.5 text-sm text-[#FFFBDC] outline-none focus:border-[#FF5900] transition-colors font-mono"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all font-mono"
                     value={newOrg.slug}
                     onChange={(e) => setNewOrg({ ...newOrg, slug: e.target.value })}
                   />
@@ -253,9 +253,9 @@ const Organizations: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-[#BAA290]">Billing Plan</label>
+                  <label className="text-xs font-bold text-gray-600">Billing Plan</label>
                   <select
-                    className="w-full bg-[#1A0D00] border border-[#FF5900]/25 rounded-xl px-4 py-2.5 text-sm text-[#FFFBDC] outline-none focus:border-[#FF5900] transition-colors"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all"
                     value={newOrg.plan}
                     onChange={(e) => setNewOrg({ ...newOrg, plan: e.target.value as any })}
                   >
@@ -267,43 +267,43 @@ const Organizations: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-[#BAA290]">Country</label>
+                  <label className="text-xs font-bold text-gray-600">Country</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. India"
-                    className="w-full bg-[#1A0D00] border border-[#FF5900]/25 rounded-xl px-4 py-2.5 text-sm text-[#FFFBDC] outline-none focus:border-[#FF5900] transition-colors"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all"
                     value={newOrg.country}
                     onChange={(e) => setNewOrg({ ...newOrg, country: e.target.value })}
                   />
                 </div>
               </div>
 
-              <div className="space-y-4 pt-2 border-t border-[#FF5900]/10">
-                <h4 className="text-xs font-bold text-[#FF5900] flex items-center gap-1.5">
+              <div className="space-y-4 pt-2 border-t border-gray-100">
+                <h4 className="text-xs font-bold text-brand-orange flex items-center gap-1.5">
                   <FileText size={14} />
                   <span>Connection Details (Supabase Project API)</span>
                 </h4>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-[#BAA290]">Supabase Project URL</label>
+                  <label className="text-xs font-bold text-gray-600">Supabase Project URL</label>
                   <input
                     type="url"
                     required
                     placeholder="https://xyz.supabase.co"
-                    className="w-full bg-[#1A0D00] border border-[#FF5900]/25 rounded-xl px-4 py-2.5 text-sm text-[#FFFBDC] outline-none focus:border-[#FF5900] transition-colors font-mono"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all font-mono"
                     value={newOrg.supabase_url}
                     onChange={(e) => setNewOrg({ ...newOrg, supabase_url: e.target.value })}
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-[#BAA290]">Supabase Anon Key</label>
+                  <label className="text-xs font-bold text-gray-600">Supabase Anon Key</label>
                   <textarea
                     required
                     rows={2}
                     placeholder="eyJhbGciOiJIUzI1NiIs..."
-                    className="w-full bg-[#1A0D00] border border-[#FF5900]/25 rounded-xl px-4 py-2 text-xs text-[#FFFBDC] outline-none focus:border-[#FF5900] transition-colors font-mono resize-none"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2 text-xs text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all font-mono resize-none"
                     value={newOrg.supabase_anon_key}
                     onChange={(e) => setNewOrg({ ...newOrg, supabase_anon_key: e.target.value })}
                   />
@@ -314,14 +314,14 @@ const Organizations: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 bg-transparent hover:bg-white/5 border border-[#FF5900]/15 text-[#BAA290] hover:text-[#FFFBDC] rounded-xl text-sm font-bold transition-all"
+                  className="px-4 py-2.5 bg-transparent hover:bg-gray-50 border border-gray-300 text-gray-700 rounded-xl text-sm font-bold transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitLoading}
-                  className="px-6 py-2.5 bg-[#FF5900] hover:bg-[#FF8237] disabled:opacity-50 text-[#FFFBDC] rounded-xl text-sm font-bold transition-all"
+                  className="px-6 py-2.5 bg-brand-orange hover:bg-brand-orange/90 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all"
                 >
                   {submitLoading ? 'Registering...' : 'Provision Tenant →'}
                 </button>

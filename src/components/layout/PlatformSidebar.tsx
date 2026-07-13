@@ -30,58 +30,60 @@ const PlatformSidebar: React.FC<PlatformSidebarProps> = ({ isTablet }) => {
   ];
 
   return (
-    <aside className="h-full bg-[#261300] border-r border-[#FF5900]/25 flex flex-col justify-between py-6">
-      <div className="flex flex-col gap-8 px-4">
-        {/* LOGO */}
-        <div className="flex items-center gap-3 px-2">
-          <h2 className="text-xl font-bold tracking-tight text-[#FFFBDC] flex items-center gap-1">
-            <span>Vyara</span><span className="text-[#FF5900]">Platform</span>
-          </h2>
-        </div>
-
-        {/* NAV ITEMS */}
-        <nav className="flex flex-col gap-1.5">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.name}
-                to={item.path}
-                end={item.end}
-                className={({ isActive }) => `
-                  flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
-                  ${isActive 
-                    ? 'bg-[#FF5900]/15 text-[#FF5900] border border-[#FF5900]/30 shadow-lg' 
-                    : 'text-[#BAA290] hover:text-[#FFFBDC] hover:bg-[#FF5900]/5 border border-transparent'}
-                `}
-              >
-                <Icon size={18} />
-                <span className={isTablet ? 'hidden md:inline' : 'inline'}>{item.name}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
+    <aside className={`h-screen bg-brand-sidebar text-white flex flex-col border-r border-white/5 overflow-y-auto ${isTablet ? 'w-16' : 'w-full'}`}>
+      <div className={`p-6 flex items-center border-b border-white/5 ${isTablet ? 'justify-center' : 'justify-start'}`}>
+        <h1 className="text-xl font-bold flex items-center">
+          <span className="text-white">V</span>
+          {!isTablet && <><span className="text-white">yara</span><span className="text-brand-orange">Platform</span></>}
+        </h1>
       </div>
 
+      <nav className="flex-1 mt-6">
+        <ul className="space-y-1.5 px-3">
+          {navItems.map((item) => (
+            <li key={item.name}>
+              <NavLink
+                to={item.path}
+                end={item.end}
+                title={isTablet ? item.name : ''}
+                className={({ isActive }) => `
+                  flex items-center rounded-xl transition-all duration-200 group
+                  ${isTablet ? 'justify-center p-3' : 'gap-3 px-4 py-3'}
+                  ${isActive 
+                    ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20' 
+                    : 'text-gray-200 hover:bg-brand-orange/20 hover:text-white'}
+                `}
+              >
+                <item.icon size={20} className="flex-shrink-0" />
+                {!isTablet && <span className="font-semibold text-sm">{item.name}</span>}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
       {/* USER PROFILE & LOGOUT */}
-      <div className="px-4 flex flex-col gap-4">
-        <div className="p-3 bg-[#FF5900]/5 rounded-2xl border border-[#FF5900]/10 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-[#FF5900]/10 flex items-center justify-center text-[#FF5900] font-bold">
+      <div className="p-4 border-t border-white/5 bg-black/10">
+        <div className={`flex items-center ${isTablet ? 'justify-center' : 'gap-3 px-2 py-2'}`}>
+          <div className="w-8 h-8 rounded-full bg-brand-orange flex items-center justify-center font-bold text-white shadow-lg shadow-brand-orange/20 flex-shrink-0">
             {profile?.full_name?.charAt(0) || 'P'}
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold text-[#FFFBDC] truncate">{profile?.full_name || 'Admin'}</span>
-            <span className="text-[10px] text-[#FF5900] font-semibold tracking-wider uppercase">Platform Admin</span>
-          </div>
+          {!isTablet && (
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-bold text-white truncate block">{profile?.full_name || 'Admin'}</span>
+              <span className="text-[10px] text-gray-400 block tracking-widest uppercase">Platform Admin</span>
+            </div>
+          )}
+          {!isTablet && (
+            <button
+              onClick={handleLogout}
+              title="Exit Platform"
+              className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+            >
+              <LogOut size={18} />
+            </button>
+          )}
         </div>
-
-        <button
-          onClick={handleLogout}
-          className="flex items-center justify-center gap-2 w-full py-3 bg-red-500/10 hover:bg-red-500/15 border border-red-500/20 text-red-400 rounded-xl text-sm font-bold transition-all duration-200"
-        >
-          <LogOut size={16} />
-          <span>Exit Platform</span>
-        </button>
       </div>
     </aside>
   );

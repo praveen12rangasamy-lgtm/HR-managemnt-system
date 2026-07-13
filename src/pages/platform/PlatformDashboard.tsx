@@ -45,33 +45,30 @@ const PlatformDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
-      {/* Welcome Banner */}
-      <div className="p-8 bg-gradient-to-r from-[#261300] to-[#1A0D00] border border-[#FF5900]/20 rounded-3xl relative overflow-hidden shadow-xl">
-        <div className="absolute top-0 right-0 p-8 opacity-10">
-          <Sparkles size={120} className="text-[#FF5900]" />
-        </div>
-        <div className="relative z-10 space-y-2">
-          <span className="px-3 py-1 bg-[#FF5900]/20 border border-[#FF5900]/30 rounded-full text-xs font-semibold text-[#FF5900] tracking-wider uppercase">
+      {/* Welcome Header */}
+      <header className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 bg-brand-orange/10 border border-brand-orange/20 rounded-full text-xs font-bold text-brand-orange tracking-wider uppercase">
             Platform Operator
           </span>
-          <h2 className="text-3xl font-extrabold text-[#FFFBDC]">
-            VyaraHR Platform Control
-          </h2>
-          <p className="text-[#BAA290] text-sm max-w-xl">
-            Provision new client organizations, manage tenant connections, and oversee system-wide audit records from a single administrative hub.
-          </p>
         </div>
-      </div>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-brand-navy tracking-tight">
+          VyaraHR Platform Control
+        </h2>
+        <p className="text-base text-gray-500 max-w-2xl">
+          Provision new client organizations, manage tenant connections, and oversee system-wide audit records from a single administrative hub.
+        </p>
+      </header>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.name} className="p-6 bg-[#261300] border border-[#FF5900]/15 rounded-2xl flex items-center justify-between shadow-lg hover:border-[#FF5900]/30 transition-all duration-200">
+            <div key={stat.name} className="p-6 bg-white border border-gray-200/80 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200">
               <div className="space-y-1">
-                <span className="text-xs text-[#BAA290] font-medium">{stat.name}</span>
-                <p className="text-3xl font-black text-[#FFFBDC]">{stat.value}</p>
+                <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">{stat.name}</span>
+                <p className="text-3xl font-black text-brand-navy">{stat.value}</p>
               </div>
               <div className={`p-4 rounded-xl ${stat.bg} ${stat.color}`}>
                 <Icon size={24} />
@@ -83,15 +80,15 @@ const PlatformDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Organizations */}
-        <div className="p-6 bg-[#261300] border border-[#FF5900]/15 rounded-3xl space-y-6">
+        <div className="p-6 bg-white border border-gray-200/80 rounded-2xl space-y-6 shadow-sm">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-[#FFFBDC] flex items-center gap-2">
-              <Building2 size={20} className="text-[#FF5900]" />
+            <h3 className="text-lg font-bold text-brand-navy flex items-center gap-2">
+              <Building2 size={20} className="text-brand-orange" />
               <span>Registered Organizations</span>
             </h3>
             <button
               onClick={() => navigate('/platform/organizations')}
-              className="flex items-center gap-1 text-xs font-semibold text-[#FF5900] hover:text-[#FF8237] transition-colors"
+              className="flex items-center gap-1 text-xs font-bold text-brand-orange hover:text-brand-teal transition-colors"
             >
               <Plus size={14} />
               <span>Add New</span>
@@ -100,19 +97,19 @@ const PlatformDashboard: React.FC = () => {
 
           <div className="space-y-4">
             {orgs.length === 0 ? (
-              <p className="text-xs text-[#BAA290] py-4 text-center">No organizations registered yet.</p>
+              <p className="text-xs text-gray-400 py-4 text-center">No organizations registered yet.</p>
             ) : (
               orgs.slice(0, 4).map((org) => (
-                <div key={org.id} className="p-4 bg-[#1A0D00] border border-[#FF5900]/10 rounded-2xl flex items-center justify-between">
+                <div key={org.id} className="p-4 bg-gray-50/50 border border-gray-100 rounded-xl flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-bold text-[#FFFBDC]">{org.name}</p>
-                    <p className="text-[10px] text-[#FF5900] font-mono tracking-wider uppercase">{org.slug}</p>
+                    <p className="text-sm font-bold text-brand-navy">{org.name}</p>
+                    <p className="text-[10px] text-brand-orange font-mono tracking-wider uppercase font-bold">{org.slug}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
                       {org.status}
                     </span>
-                    <span className="px-2 py-0.5 bg-[#FF5900]/10 border border-[#FF5900]/20 text-[#FF5900] rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    <span className="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 text-brand-orange rounded-full text-[10px] font-bold uppercase tracking-wider">
                       {org.plan}
                     </span>
                   </div>
@@ -123,15 +120,15 @@ const PlatformDashboard: React.FC = () => {
         </div>
 
         {/* Recent Audit Logs */}
-        <div className="p-6 bg-[#261300] border border-[#FF5900]/15 rounded-3xl space-y-6">
+        <div className="p-6 bg-white border border-gray-200/80 rounded-2xl space-y-6 shadow-sm">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-[#FFFBDC] flex items-center gap-2">
-              <ShieldAlert size={20} className="text-[#FF5900]" />
+            <h3 className="text-lg font-bold text-brand-navy flex items-center gap-2">
+              <ShieldAlert size={20} className="text-brand-orange" />
               <span>Recent Activity Logs</span>
             </h3>
             <button
               onClick={() => navigate('/platform/audit-logs')}
-              className="text-xs font-semibold text-[#FF5900] hover:text-[#FF8237] transition-colors"
+              className="text-xs font-bold text-brand-orange hover:text-brand-teal transition-colors"
             >
               View All Logs
             </button>
@@ -139,17 +136,17 @@ const PlatformDashboard: React.FC = () => {
 
           <div className="space-y-3">
             {logs.length === 0 ? (
-              <p className="text-xs text-[#BAA290] py-4 text-center">No platform activity logged yet.</p>
+              <p className="text-xs text-gray-400 py-4 text-center">No platform activity logged yet.</p>
             ) : (
               logs.map((log) => (
-                <div key={log.id} className="p-3.5 bg-[#1A0D00] border border-[#FF5900]/10 rounded-xl flex items-start gap-3">
-                  <div className="p-2 bg-[#FF5900]/10 text-[#FF5900] rounded-lg mt-0.5">
+                <div key={log.id} className="p-3.5 bg-gray-50/50 border border-gray-100 rounded-xl flex items-start gap-3">
+                  <div className="p-2 bg-brand-orange/10 text-brand-orange rounded-lg mt-0.5">
                     <ShieldAlert size={14} />
                   </div>
                   <div className="space-y-1 min-w-0">
-                    <p className="text-xs font-bold text-[#FFFBDC] truncate">{log.action}</p>
-                    <p className="text-[10px] text-[#BAA290] flex items-center gap-2">
-                      <span className="text-[#FF5900] font-semibold">{log.actor_email}</span>
+                    <p className="text-xs font-bold text-brand-navy truncate">{log.action}</p>
+                    <p className="text-[10px] text-gray-500 flex items-center gap-2">
+                      <span className="text-brand-orange font-semibold">{log.actor_email}</span>
                       <span>•</span>
                       <span>{new Date(log.created_at).toLocaleDateString()}</span>
                     </p>
@@ -165,3 +162,4 @@ const PlatformDashboard: React.FC = () => {
 };
 
 export default PlatformDashboard;
+

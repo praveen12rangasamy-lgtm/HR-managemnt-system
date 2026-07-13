@@ -31,48 +31,48 @@ const AuditLogs: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-6 animate-in fade-in duration-300 text-brand-navy">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-[#FFFBDC]">Audit Records</h2>
-          <p className="text-xs text-[#BAA290]">Review platform level configuration changes and management activities.</p>
+          <h2 className="text-xl font-bold text-brand-navy">Audit Records</h2>
+          <p className="text-xs text-gray-500">Review platform level configuration changes and management activities.</p>
         </div>
         <button
           onClick={fetchLogs}
-          className="flex items-center gap-1.5 px-4 py-2 border border-[#FF5900]/25 text-[#BAA290] hover:text-[#FFFBDC] bg-[#261300] hover:bg-[#FF5900]/5 rounded-xl text-xs font-bold transition-all shadow-sm"
+          className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 rounded-xl text-xs font-bold transition-all shadow-sm"
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin text-[#FF5900]' : 'text-[#FF5900]'} />
+          <RefreshCw size={14} className={loading ? 'animate-spin text-brand-orange' : 'text-brand-orange'} />
           <span>Reload Logs</span>
         </button>
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-[#261300] border border-[#FF5900]/15 rounded-xl max-w-md">
-        <Search size={18} className="text-[#BAA290]" />
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-white border border-gray-200 rounded-xl max-w-md shadow-sm">
+        <Search size={18} className="text-gray-400" />
         <input
           type="text"
           placeholder="Filter logs by action, operator email or target ID..."
-          className="bg-transparent border-none outline-none text-sm text-[#FFFBDC] placeholder-[#BAA290] w-full"
+          className="bg-transparent border-none outline-none text-sm text-brand-navy placeholder-gray-400 w-full"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {/* List */}
-      <div className="bg-[#261300] border border-[#FF5900]/15 rounded-3xl overflow-hidden shadow-lg">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#FF5900]"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-orange"></div>
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div className="p-12 text-center text-[#BAA290] text-sm">
+          <div className="p-12 text-center text-gray-500 text-sm">
             No audit records registered yet.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#FF5900]/15 text-xs text-[#BAA290] font-bold bg-[#1A0D00]/40">
+                <tr className="border-b border-gray-200 text-xs text-gray-500 font-bold bg-gray-50/50">
                   <th className="p-5">Timestamp</th>
                   <th className="p-5">Operator</th>
                   <th className="p-5">Action Perform</th>
@@ -80,40 +80,40 @@ const AuditLogs: React.FC = () => {
                   <th className="p-5">Metadata Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#FF5900]/10 text-sm">
+              <tbody className="divide-y divide-gray-100 text-sm">
                 {filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-[#FF5900]/5 transition-colors">
-                    <td className="p-5 text-xs text-[#BAA290] whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <Clock size={12} className="text-[#FF5900]" />
+                  <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="p-5 text-xs text-gray-500 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        <Clock size={12} className="text-brand-orange" />
                         <span>{new Date(log.created_at).toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="p-5">
                       <div>
-                        <p className="font-bold text-[#FFFBDC]">{log.actor_email}</p>
-                        <p className="text-[10px] text-[#FF5900] font-semibold uppercase tracking-wider mt-0.5">{log.actor_role}</p>
+                        <p className="font-bold text-brand-navy">{log.actor_email}</p>
+                        <p className="text-[10px] text-brand-orange font-bold uppercase tracking-wider mt-0.5">{log.actor_role}</p>
                       </div>
                     </td>
                     <td className="p-5">
                       <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-[#FF5900]/10 text-[#FF5900] rounded-lg">
+                        <div className="p-1.5 bg-brand-orange/10 text-brand-orange rounded-lg">
                           <ShieldAlert size={12} />
                         </div>
-                        <span className="font-semibold text-[#FFFBDC]">{log.action}</span>
+                        <span className="font-semibold text-brand-navy">{log.action}</span>
                       </div>
                     </td>
                     <td className="p-5 text-xs">
                       {log.target_type ? (
                         <div>
-                          <span className="text-[#BAA290]">{log.target_type}: </span>
-                          <span className="text-[#FFFBDC] font-semibold font-mono">{log.target_id}</span>
+                          <span className="text-gray-500">{log.target_type}: </span>
+                          <span className="text-brand-navy font-bold font-mono bg-gray-100 px-1.5 py-0.5 rounded">{log.target_id}</span>
                         </div>
                       ) : (
-                        <span className="text-[#BAA290] italic">None</span>
+                        <span className="text-gray-400 italic">None</span>
                       )}
                     </td>
-                    <td className="p-5 text-xs text-[#BAA290] font-mono max-w-[250px] truncate" title={log.metadata ? JSON.stringify(log.metadata) : ''}>
+                    <td className="p-5 text-xs text-gray-500 font-mono max-w-[250px] truncate" title={log.metadata ? JSON.stringify(log.metadata) : ''}>
                       {log.metadata ? JSON.stringify(log.metadata) : 'N/A'}
                     </td>
                   </tr>

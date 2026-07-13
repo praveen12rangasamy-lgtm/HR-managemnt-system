@@ -108,32 +108,32 @@ const PlatformUsers: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-[#FFFBDC]">Platform Operators</h2>
-          <p className="text-xs text-[#BAA290]">Manage admin email logins that have master-level console access.</p>
+          <h2 className="text-xl font-bold text-brand-navy">Platform Operators</h2>
+          <p className="text-xs text-gray-500">Manage admin email logins that have master-level console access.</p>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#FF5900] hover:bg-[#FF8237] text-[#FFFBDC] rounded-xl text-sm font-bold transition-all shadow-md"
+          className="flex items-center gap-2 px-5 py-2.5 bg-brand-orange hover:bg-brand-orange/90 text-white rounded-xl text-sm font-bold transition-all shadow-md"
         >
           <Plus size={16} />
           <span>Add Administrator</span>
         </button>
       </div>
 
-      <div className="bg-[#261300] border border-[#FF5900]/15 rounded-3xl overflow-hidden shadow-lg">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#FF5900]"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-brand-orange"></div>
           </div>
         ) : users.length === 0 ? (
-          <div className="p-12 text-center text-[#BAA290] text-sm">
+          <div className="p-12 text-center text-gray-500 text-sm">
             No platform administrators found.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#FF5900]/15 text-xs text-[#BAA290] font-bold bg-[#1A0D00]/40">
+                <tr className="border-b border-gray-200 text-xs text-gray-500 font-bold bg-gray-50/50">
                   <th className="p-5">Name & Email</th>
                   <th className="p-5">Role</th>
                   <th className="p-5">Status</th>
@@ -141,38 +141,38 @@ const PlatformUsers: React.FC = () => {
                   <th className="p-5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#FF5900]/10 text-sm">
+              <tbody className="divide-y divide-gray-100 text-sm">
                 {users.map((admin) => (
-                  <tr key={admin.id} className="hover:bg-[#FF5900]/5 transition-colors">
+                  <tr key={admin.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="p-5">
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-[#FF5900]/10 text-[#FF5900] rounded-xl">
+                        <div className="p-2.5 bg-brand-orange/10 text-brand-orange rounded-xl">
                           <Shield size={16} />
                         </div>
                         <div>
-                          <p className="font-bold text-[#FFFBDC]">{admin.full_name}</p>
-                          <p className="text-xs text-[#BAA290] flex items-center gap-1 mt-0.5">
-                            <Mail size={12} className="text-[#FF5900]" />
+                          <p className="font-bold text-brand-navy">{admin.full_name}</p>
+                          <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                            <Mail size={12} className="text-brand-orange" />
                             <span>{admin.email}</span>
                           </p>
                         </div>
                       </div>
                     </td>
                     <td className="p-5">
-                      <span className="px-2.5 py-0.5 bg-[#FF5900]/10 border border-[#FF5900]/25 text-[#FF5900] rounded-full text-xs font-semibold uppercase">
+                      <span className="px-2.5 py-0.5 bg-brand-orange/10 border border-brand-orange/20 text-brand-orange rounded-full text-xs font-bold uppercase tracking-wider">
                         {admin.role.replace('_', ' ')}
                       </span>
                     </td>
                     <td className="p-5">
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
                         admin.is_active 
-                          ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' 
-                          : 'bg-red-500/10 border border-red-500/25 text-red-400'
+                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600' 
+                          : 'bg-red-500/10 border border-red-500/20 text-red-600'
                       }`}>
                         {admin.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="p-5 text-[#BAA290] text-xs">
+                    <td className="p-5 text-gray-500 text-xs">
                       {new Date(admin.created_at).toLocaleDateString()}
                     </td>
                     <td className="p-5 text-right">
@@ -181,8 +181,8 @@ const PlatformUsers: React.FC = () => {
                           onClick={() => handleToggleActive(admin.id, admin.is_active, admin.email)}
                           className={`p-2 rounded-lg border transition-all ${
                             admin.is_active 
-                              ? 'border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/10' 
-                              : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10'
+                              ? 'border-red-200 bg-red-50/50 text-red-500 hover:bg-red-100/50' 
+                              : 'border-emerald-200 bg-emerald-50/50 text-emerald-500 hover:bg-emerald-100/50'
                           }`}
                           title={admin.is_active ? 'Deactivate Operator' : 'Activate Operator'}
                         >
@@ -200,44 +200,44 @@ const PlatformUsers: React.FC = () => {
 
       {/* ADD ADMIN MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
-          <div className="bg-[#261300] border border-[#FF5900]/20 rounded-3xl p-6 w-full max-w-md shadow-2xl relative animate-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-md shadow-2xl relative animate-in zoom-in duration-200 text-brand-navy">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-[#BAA290] hover:text-[#FFFBDC] text-lg"
+              className="absolute top-4 right-4 text-gray-400 hover:text-brand-navy text-lg font-bold"
             >
               ✕
             </button>
-            <h3 className="text-lg font-bold text-[#FFFBDC] mb-2 flex items-center gap-2">
-              <Shield size={20} className="text-[#FF5900]" />
+            <h3 className="text-lg font-bold text-brand-navy mb-2 flex items-center gap-2">
+              <Shield size={20} className="text-brand-orange" />
               <span>Register Operator</span>
             </h3>
-            <p className="text-xs text-[#BAA290] mb-6">
-              Create a system admin credentials to access VyaraHR master console.
+            <p className="text-xs text-gray-500 mb-6">
+              Create system admin credentials to access VyaraHR master console.
             </p>
 
             <form onSubmit={handleAddAdmin} className="space-y-4">
-              {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-xs">{error}</div>}
+              {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-xs">{error}</div>}
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#BAA290]">Full Name</label>
+                <label className="text-xs font-bold text-gray-600">Full Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. John Doe"
-                  className="w-full bg-[#1A0D00] border border-[#FF5900]/25 rounded-xl px-4 py-2.5 text-sm text-[#FFFBDC] outline-none focus:border-[#FF5900] transition-colors"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all"
                   value={newAdmin.fullName}
                   onChange={(e) => setNewAdmin({ ...newAdmin, fullName: e.target.value })}
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#BAA290]">Operator Email Address</label>
+                <label className="text-xs font-bold text-gray-600">Operator Email Address</label>
                 <input
                   type="email"
                   required
                   placeholder="name@company.com"
-                  className="w-full bg-[#1A0D00] border border-[#FF5900]/25 rounded-xl px-4 py-2.5 text-sm text-[#FFFBDC] outline-none focus:border-[#FF5900] transition-colors"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all"
                   value={newAdmin.email}
                   onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })}
                 />
@@ -247,14 +247,14 @@ const PlatformUsers: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 bg-transparent hover:bg-white/5 border border-[#FF5900]/15 text-[#BAA290] hover:text-[#FFFBDC] rounded-xl text-sm font-bold transition-all"
+                  className="px-4 py-2.5 bg-transparent hover:bg-gray-50 border border-gray-300 text-gray-700 rounded-xl text-sm font-bold transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitLoading}
-                  className="px-6 py-2.5 bg-[#FF5900] hover:bg-[#FF8237] disabled:opacity-50 text-[#FFFBDC] rounded-xl text-sm font-bold transition-all"
+                  className="px-6 py-2.5 bg-brand-orange hover:bg-brand-orange/90 disabled:opacity-50 text-white rounded-xl text-sm font-bold transition-all"
                 >
                   {submitLoading ? 'Registering...' : 'Register Operator'}
                 </button>
