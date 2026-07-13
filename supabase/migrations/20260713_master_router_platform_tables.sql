@@ -39,6 +39,19 @@ CREATE TABLE IF NOT EXISTS organizations (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Sync existing connections to organizations table
+INSERT INTO organizations (slug, name, country, plan, status, supabase_project_ref)
+SELECT 
+  company_slug, 
+  company_name, 
+  'India', 
+  'pro', 
+  'active', 
+  COALESCE(SUBSTRING(supabase_url FROM 'https://(.*)\.supabase\.co'), '')
+FROM tenant_connections
+ON CONFLICT (slug) DO NOTHING;
+
+
 -- 3. Audit Logs table
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
