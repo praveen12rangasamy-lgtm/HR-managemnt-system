@@ -362,8 +362,24 @@ const HiringOnboarding = () => {
       showToast("Please select a candidate to onboard.", "info");
       return;
     }
-    // handleSaveSetup is now an alias — actual creation happens in confirmSelection
-    showToast("Employee account is already being created via the Select flow. Use the 'Select' button in the pipeline.", "info");
+    
+    // Update status to 'Onboarded' so they are moved out of the hiring pipeline
+    const updated = applicants.map(a => a.id === selectedCandidate.id ? { ...a, status: 'Onboarded' } : a);
+    setApplicants(updated);
+    
+    // Save to localStorage immediately so it's persistent
+    if (profile?.email) {
+      const key = `hr_applicants_${profile.email}`;
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
+
+    showToast(`Onboarding setup completed for ${selectedCandidate.name}! They have been moved to the onboarding list and cleared from the hiring pipeline.`, "success");
+    setSelectedCandidate(null);
+    setCustomEmpId('');
+    setCustomPassword('Welcome@2024');
+    
+    // Refresh employee list
+    await fetchAllEmployees();
   };
 
 
@@ -388,13 +404,37 @@ const HiringOnboarding = () => {
       const text = event.target?.result as string;
       const lines = text.split('\n');
       const newApplicants: any[] = [];
+      let duplicatesCount = 0;
 
       // Skip header and empty lines
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
-        const [name, empId, role, phone, resume] = lines[i].split(',').map(s => s.trim());
+        const parts = lines[i].split(',').map(s => s.trim());
+        const name = parts[0];
+        const empId = parts[1];
+        const role = parts[2];
+        const phone = parts[3];
+        const resume = parts[4];
         if (!name) continue;
         
+        const email = `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`;
+
+        // Check duplicates
+        const isDuplicate = applicants.some(a => 
+          a.name.toLowerCase() === name.toLowerCase() || 
+          (phone && a.phone === phone) || 
+          a.email.toLowerCase() === email.toLowerCase()
+        ) || newApplicants.some(a => 
+          a.name.toLowerCase() === name.toLowerCase() || 
+          (phone && a.phone === phone) || 
+          a.email.toLowerCase() === email.toLowerCase()
+        );
+
+        if (isDuplicate) {
+          duplicatesCount++;
+          continue;
+        }
+
         newApplicants.push({
           id: Date.now() + i,
           name,
@@ -402,19 +442,27 @@ const HiringOnboarding = () => {
           role,
           phone,
           resume, // In real app this would be a URL
-          email: `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`, // Generated for demo
+          email,
           match: 0,
           status: 'Applied'
         });
       }
 
       if (newApplicants.length === 0) {
-        showToast("❌ Uploaded CSV has no valid candidate data.", "info");
+        if (duplicatesCount > 0) {
+          showToast(`❌ No new candidates added. All ${duplicatesCount} were skipped as duplicates.`, "info");
+        } else {
+          showToast("❌ Uploaded CSV has no valid candidate data.", "info");
+        }
         return;
       }
 
       setApplicants(prev => [...prev, ...newApplicants]);
-      showToast(`${newApplicants.length} applicants uploaded from CSV!`, 'success');
+      if (duplicatesCount > 0) {
+        showToast(`${newApplicants.length} applicants uploaded! (${duplicatesCount} duplicates skipped)`, 'success');
+      } else {
+        showToast(`${newApplicants.length} applicants uploaded from CSV!`, 'success');
+      }
     };
     reader.readAsText(file);
     e.target.value = ''; // Reset input
@@ -529,7 +577,7 @@ const HiringOnboarding = () => {
             <div className="flex items-center gap-3">
               <CardTitle>Section A: Applicant Pool</CardTitle>
               <span className="px-2.5 py-0.5 rounded-full bg-brand-teal/10 text-brand-teal text-xs font-bold">
-                {applicants.length} Total
+                {applicants.filter(a => a.status !== 'Onboarded').length} Total
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -563,7 +611,7 @@ const HiringOnboarding = () => {
                 </tr>
               </thead>
               <tbody>
-                {applicants.map((a) => (
+                {applicants.filter(a => a.status !== 'Onboarded').map((a) => (
                   <tr key={a.id} className="border-b transition-colors hover:bg-gray-50/50">
                     <td className="px-6 py-4 font-medium">{a.name}</td>
                     <td className="px-6 py-4 text-gray-500 text-xs">{a.email}</td>
