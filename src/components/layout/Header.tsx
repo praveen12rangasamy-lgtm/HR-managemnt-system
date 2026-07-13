@@ -57,6 +57,7 @@ const Header: React.FC<HeaderProps> = ({ isMobile }) => {
       ] : []),
       ...(isSuperAdmin ? [
         { name: 'Admin Management', path: '/dashboard/admins' },
+        { name: 'Post Job', path: '/dashboard/updates' },
         { name: 'Hiring & Onboarding', path: '/dashboard/hiring' },
         { name: 'Employee Management', path: '/dashboard/employees' },
         { name: 'Offboarding', path: '/dashboard/offboarding' }
