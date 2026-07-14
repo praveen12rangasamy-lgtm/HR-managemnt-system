@@ -159,6 +159,19 @@ const HiringOnboarding = () => {
     showToast(`Technical Interview scheduled for ${candidate?.name}`, 'info');
   };
 
+  const handleDeleteApplicant = (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this applicant?")) {
+      return;
+    }
+    const updated = applicants.filter(a => a.id !== id);
+    setApplicants(updated);
+    if (profile?.email) {
+      const key = `hr_applicants_${profile.email}`;
+      localStorage.setItem(key, JSON.stringify(updated));
+    }
+    showToast("Applicant removed successfully.", "success");
+  };
+
   const fetchAllEmployees = async () => {
     try {
       // Get real profiles from Supabase hired by this admin
@@ -609,6 +622,7 @@ const HiringOnboarding = () => {
                   <th className="px-6 py-3">Applied Role</th>
                   <th className="px-6 py-3">Phone Number</th>
                   <th className="px-6 py-3">Resume</th>
+                  <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -626,6 +640,16 @@ const HiringOnboarding = () => {
                         onClick={() => downloadResumePDF(a)}
                       >
                         <FileText size={16}/> View & Download
+                      </Button>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleDeleteApplicant(a.id)}
+                      >
+                        <Trash2 size={16}/> Delete
                       </Button>
                     </td>
                   </tr>
