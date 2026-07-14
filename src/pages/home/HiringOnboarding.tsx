@@ -469,6 +469,17 @@ const HiringOnboarding = () => {
   };
 
   const downloadResumePDF = (candidate: any) => {
+    if (candidate.resume && (
+      candidate.resume.startsWith('http://') || 
+      candidate.resume.startsWith('https://') || 
+      candidate.resume.includes('drive.google.com') ||
+      candidate.resume.includes('docs.google.com')
+    )) {
+      window.open(candidate.resume, '_blank');
+      showToast(`Opening resume link for ${candidate.name}...`, 'success');
+      return;
+    }
+
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
