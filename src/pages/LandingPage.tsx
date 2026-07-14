@@ -331,6 +331,15 @@ const LandingPage: React.FC = () => {
       }
 
       if (isPlatformMode()) {
+        // Log successful Platform Admin login
+        const { auditService } = await import('../services/auditService');
+        await auditService.log(
+          'Platform Admin successfully logged into system operations portal',
+          targetEmail,
+          'platform_admin',
+          'platform',
+          targetEmail
+        );
         navigate('/platform');
       } else {
         navigate('/dashboard');

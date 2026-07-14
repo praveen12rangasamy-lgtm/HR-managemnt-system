@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldAlert, Search, RefreshCw, Clock } from 'lucide-react';
 import { auditService } from '../../services/auditService';
 import type { AuditLog } from '../../types/tenant';
+import { masterSupabase } from '../../lib/supabase';
 
 const AuditLogs: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -22,6 +23,21 @@ const AuditLogs: React.FC = () => {
 
   useEffect(() => {
     fetchLogs();
+
+    const channel = masterSupabase
+      .channel('audit-logs-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'audit_logs' },
+        (payload) => {
+          setLogs(prev => [payload.new as AuditLog, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      masterSupabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredLogs = logs.filter(l => 

@@ -4,6 +4,7 @@ import { Building2, Users2, ShieldAlert, Cpu, Sparkles, Plus, TrendingUp } from 
 import { organizationService } from '../../services/organizationService';
 import { auditService } from '../../services/auditService';
 import type { Organization, AuditLog } from '../../types/tenant';
+import { masterSupabase } from '../../lib/supabase';
 
 const PlatformDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -27,6 +28,21 @@ const PlatformDashboard: React.FC = () => {
       }
     };
     loadDashboardData();
+
+    const channel = masterSupabase
+      .channel('dashboard-audit-logs-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'audit_logs' },
+        (payload) => {
+          setLogs(prev => [payload.new as AuditLog, ...prev.slice(0, 4)]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      masterSupabase.removeChannel(channel);
+    };
   }, []);
 
   const stats = [
