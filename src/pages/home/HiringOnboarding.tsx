@@ -406,18 +406,32 @@ const HiringOnboarding = () => {
       const newApplicants: any[] = [];
       let duplicatesCount = 0;
 
+      // Analyze header row to find column indices dynamically
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      
+      const nameIndex = headers.findIndex(h => h.includes('name'));
+      const emailIndex = headers.findIndex(h => h.includes('email') || h.includes('mail'));
+      const roleIndex = headers.findIndex(h => h.includes('role') || h.includes('job') || h.includes('designation') || h.includes('applied'));
+      const phoneIndex = headers.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact'));
+      const resumeIndex = headers.findIndex(h => h.includes('resume') || h.includes('link') || h.includes('drive'));
+      const empIdIndex = headers.findIndex(h => h.includes('emp') || (h.includes('id') && !h.includes('email')));
+
       // Skip header and empty lines
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
         const parts = lines[i].split(',').map(s => s.trim());
-        const name = parts[0];
-        const empId = parts[1];
-        const role = parts[2];
-        const phone = parts[3];
-        const resume = parts[4];
-        if (!name) continue;
         
-        const email = `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`;
+        const name = nameIndex !== -1 ? parts[nameIndex] : parts[0];
+        if (!name) continue;
+
+        const email = (emailIndex !== -1 && parts[emailIndex])
+          ? parts[emailIndex]
+          : `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`;
+
+        const empId = empIdIndex !== -1 ? parts[empIdIndex] : parts[1];
+        const role = roleIndex !== -1 ? parts[roleIndex] : parts[2];
+        const phone = phoneIndex !== -1 ? parts[phoneIndex] : parts[3];
+        const resume = resumeIndex !== -1 ? parts[resumeIndex] : parts[4];
 
         // Check duplicates
         const isDuplicate = applicants.some(a => 
