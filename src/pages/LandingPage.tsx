@@ -342,6 +342,30 @@ const LandingPage: React.FC = () => {
         );
         navigate('/platform');
       } else {
+        // Log successful tenant login (employee, admin, superadmin)
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, full_name')
+            .eq('email', targetEmail.trim().toLowerCase())
+            .maybeSingle();
+
+          const role = profile?.role || 'employee';
+          const name = profile?.full_name || targetEmail;
+          const tenantSlug = localStorage.getItem('selected_tenant_slug') || 'unknown';
+
+          const { auditService } = await import('../services/auditService');
+          await auditService.log(
+            `${role === 'superadmin' ? 'Super Admin' : role === 'admin' ? 'HR Admin' : 'Employee'} successfully logged into VyaraHR Portal`,
+            targetEmail,
+            role,
+            'tenant_portal',
+            tenantSlug,
+            { name }
+          );
+        } catch (auditErr) {
+          console.error('Failed to log tenant login audit:', auditErr);
+        }
         navigate('/dashboard');
       }
       closeModals();
