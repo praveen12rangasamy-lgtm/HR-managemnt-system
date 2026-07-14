@@ -433,22 +433,6 @@ const HiringOnboarding = () => {
         const phone = phoneIndex !== -1 ? parts[phoneIndex] : parts[3];
         const resume = resumeIndex !== -1 ? parts[resumeIndex] : parts[4];
 
-        // Check duplicates
-        const isDuplicate = applicants.some(a => 
-          a.name.toLowerCase() === name.toLowerCase() || 
-          (phone && a.phone === phone) || 
-          a.email.toLowerCase() === email.toLowerCase()
-        ) || newApplicants.some(a => 
-          a.name.toLowerCase() === name.toLowerCase() || 
-          (phone && a.phone === phone) || 
-          a.email.toLowerCase() === email.toLowerCase()
-        );
-
-        if (isDuplicate) {
-          duplicatesCount++;
-          continue;
-        }
-
         newApplicants.push({
           id: Date.now() + i,
           name,
@@ -463,20 +447,12 @@ const HiringOnboarding = () => {
       }
 
       if (newApplicants.length === 0) {
-        if (duplicatesCount > 0) {
-          showToast(`❌ No new candidates added. All ${duplicatesCount} were skipped as duplicates.`, "info");
-        } else {
-          showToast("❌ Uploaded CSV has no valid candidate data.", "info");
-        }
+        showToast("❌ Uploaded CSV has no valid candidate data.", "info");
         return;
       }
 
       setApplicants(prev => [...prev, ...newApplicants]);
-      if (duplicatesCount > 0) {
-        showToast(`${newApplicants.length} applicants uploaded! (${duplicatesCount} duplicates skipped)`, 'success');
-      } else {
-        showToast(`${newApplicants.length} applicants uploaded from CSV!`, 'success');
-      }
+      showToast(`${newApplicants.length} applicants uploaded from CSV!`, 'success');
     };
     reader.readAsText(file);
     e.target.value = ''; // Reset input
