@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Building2, Users2, ShieldAlert, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Building2, Users2, ShieldAlert, Settings, LogOut, CreditCard } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { resetTenant } from '../../lib/supabase';
 import { useTenant } from '../../hooks/useTenant';
@@ -24,6 +24,7 @@ const PlatformSidebar: React.FC<PlatformSidebarProps> = ({ isTablet }) => {
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/platform', end: true },
     { name: 'Organizations', icon: Building2, path: '/platform/organizations' },
+    { name: 'Billing & Payments', icon: CreditCard, path: '/platform/payments' },
     { name: 'Platform Admins', icon: Users2, path: '/platform/users' },
     { name: 'Audit Logs', icon: ShieldAlert, path: '/platform/audit-logs' },
     { name: 'Global Settings', icon: Settings, path: '/platform/settings' },

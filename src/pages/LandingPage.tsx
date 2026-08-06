@@ -164,11 +164,11 @@ const LandingPage: React.FC = () => {
       return;
     }
 
-    if (slug === 'vyarahr-platform') {
+    if (slug === 'vyarahr-platform' || slug === 'vyarahr') {
       switchTenant('https://nxtjqpehfdutqnvbaodb.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54dGpxcGVoZmR1dHFudmJhb2RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4MzI1MDYsImV4cCI6MjA5OTQwODUwNn0.J4jb1IorRLAGoKTF80fIbToDkmCvNDjXVNXwha-W-vs');
-      localStorage.setItem('selected_tenant_slug', 'vyarahr-platform');
+      localStorage.setItem('selected_tenant_slug', slug);
       localStorage.setItem('selected_tenant_name', 'VyaraHR Platform');
-      setSelectedCompany({ name: 'VyaraHR Platform', slug: 'vyarahr-platform' });
+      setSelectedCompany({ name: 'VyaraHR Platform', slug });
       setActiveModal('loginModal');
       setLoading(false);
       return;

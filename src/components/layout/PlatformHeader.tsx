@@ -15,6 +15,7 @@ const PlatformHeader: React.FC<PlatformHeaderProps> = ({ isMobile }) => {
   const getPageTitle = () => {
     if (path === '/platform') return 'Platform Dashboard';
     if (path.startsWith('/platform/organizations')) return 'Organization Management';
+    if (path.startsWith('/platform/payments')) return 'Billing & Payment Management';
     if (path.startsWith('/platform/users')) return 'Platform Administrators';
     if (path.startsWith('/platform/audit-logs')) return 'System Audit Logs';
     if (path.startsWith('/platform/settings')) return 'Global Platform Settings';

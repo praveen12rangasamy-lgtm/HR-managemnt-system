@@ -41,6 +41,7 @@ import PlatformRoute from './components/auth/PlatformRoute';
 import PlatformLayout from './components/layout/PlatformLayout';
 import PlatformDashboard from './pages/platform/PlatformDashboard';
 import Organizations from './pages/platform/Organizations';
+import Payments from './pages/platform/Payments';
 import PlatformUsers from './pages/platform/PlatformUsers';
 import AuditLogs from './pages/platform/AuditLogs';
 import GlobalSettings from './pages/platform/GlobalSettings';
@@ -82,6 +83,7 @@ function App() {
             }>
               <Route index element={<PlatformDashboard />} />
               <Route path="organizations" element={<Organizations />} />
+              <Route path="payments" element={<Payments />} />
               <Route path="users" element={<PlatformUsers />} />
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="settings" element={<GlobalSettings />} />

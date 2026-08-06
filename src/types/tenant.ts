@@ -17,6 +17,7 @@ export interface Organization {
   logo_url?: string;
   status: 'active' | 'suspended' | 'trial' | 'cancelled';
   plan: 'trial' | 'starter' | 'pro' | 'enterprise';
+  payment_status: 'paid' | 'unpaid' | 'overdue' | 'trialing';
   supabase_project_ref?: string;
   created_at: string;
   updated_at: string;

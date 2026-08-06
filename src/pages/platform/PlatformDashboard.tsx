@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Users2, ShieldAlert, Cpu, Sparkles, Plus, TrendingUp } from 'lucide-react';
+import { Building2, Users2, ShieldAlert, Cpu, Sparkles, Plus, TrendingUp, CreditCard } from 'lucide-react';
 import { organizationService } from '../../services/organizationService';
 import { auditService } from '../../services/auditService';
 import type { Organization, AuditLog } from '../../types/tenant';
@@ -45,10 +45,26 @@ const PlatformDashboard: React.FC = () => {
     };
   }, []);
 
+  const getPaymentStatusBadge = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600';
+      case 'trialing':
+        return 'bg-amber-500/10 border border-amber-500/20 text-amber-600';
+      case 'unpaid':
+        return 'bg-red-500/10 border border-red-500/20 text-red-600';
+      case 'overdue':
+        return 'bg-rose-500/10 border border-rose-500/20 text-rose-600';
+      default:
+        return 'bg-gray-500/10 border border-gray-500/20 text-gray-600';
+    }
+  };
+
   const stats = [
-    { name: 'Total Organizations', value: orgs.length.toString(), icon: Building2, color: 'text-brand-orange', bg: 'bg-[#FF5900]/10' },
-    { name: 'Active Tenants', value: orgs.filter(o => o.status === 'active').length.toString(), icon: Cpu, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { name: 'System Logs (All Time)', value: logs.length.toString(), icon: ShieldAlert, color: 'text-amber-400', bg: 'bg-amber-500/10' }
+    { name: 'Total Organizations', value: orgs.length.toString(), icon: Building2, color: 'text-brand-orange', bg: 'bg-[#FF5900]/10', path: '/platform/organizations' },
+    { name: 'Active Tenants', value: orgs.filter(o => o.status === 'active').length.toString(), icon: Cpu, color: 'text-emerald-400', bg: 'bg-emerald-500/10', path: '/platform/organizations' },
+    { name: 'Billing & Payments', value: `${orgs.filter(o => o.payment_status === 'paid').length}/${orgs.length} Paid`, icon: CreditCard, color: 'text-brand-orange', bg: 'bg-[#FF5900]/10', path: '/platform/payments' },
+    { name: 'System Logs', value: logs.length.toString(), icon: ShieldAlert, color: 'text-amber-400', bg: 'bg-amber-500/10', path: '/platform/audit-logs' }
   ];
 
   if (loading) {
@@ -77,16 +93,20 @@ const PlatformDashboard: React.FC = () => {
       </header>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.name} className="p-6 bg-white border border-gray-200/80 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200">
+            <div 
+              key={stat.name} 
+              onClick={() => navigate(stat.path)}
+              className="p-6 bg-white border border-gray-200/80 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group"
+            >
               <div className="space-y-1">
-                <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">{stat.name}</span>
+                <span className="text-xs text-gray-500 font-bold uppercase tracking-wider group-hover:text-brand-orange transition-colors">{stat.name}</span>
                 <p className="text-3xl font-black text-brand-navy">{stat.value}</p>
               </div>
-              <div className={`p-4 rounded-xl ${stat.bg} ${stat.color}`}>
+              <div className={`p-4 rounded-xl ${stat.bg} ${stat.color} group-hover:scale-105 transition-transform`}>
                 <Icon size={24} />
               </div>
             </div>
@@ -127,6 +147,9 @@ const PlatformDashboard: React.FC = () => {
                     </span>
                     <span className="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 text-brand-orange rounded-full text-[10px] font-bold uppercase tracking-wider">
                       {org.plan}
+                    </span>
+                    <span className={`px-2 py-0.5 border rounded-full text-[10px] font-bold uppercase tracking-wider ${getPaymentStatusBadge(org.payment_status)}`}>
+                      {org.payment_status || 'trialing'}
                     </span>
                   </div>
                 </div>

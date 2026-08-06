@@ -27,6 +27,7 @@ const Organizations: React.FC = () => {
     slug: '',
     country: 'India',
     plan: 'trial' as 'trial' | 'starter' | 'pro' | 'enterprise',
+    payment_status: 'trialing' as 'paid' | 'unpaid' | 'overdue' | 'trialing',
     supabase_url: '',
     supabase_anon_key: ''
   });
@@ -106,6 +107,7 @@ const Organizations: React.FC = () => {
         slug: org.slug,
         country: org.country || 'India',
         plan: org.plan,
+        payment_status: org.payment_status || 'trialing',
         supabase_url: conn?.supabase_url || '',
         supabase_anon_key: conn?.supabase_anon_key || ''
       });
@@ -149,6 +151,7 @@ const Organizations: React.FC = () => {
           slug: slug,
           country: newOrg.country,
           plan: newOrg.plan,
+          payment_status: newOrg.payment_status,
           supabase_project_ref: newOrg.supabase_url.match(/https:\/\/(.*)\.supabase\.co/)?.[1] || ''
         });
 
@@ -175,6 +178,7 @@ const Organizations: React.FC = () => {
           slug: slug,
           country: newOrg.country,
           plan: newOrg.plan,
+          payment_status: newOrg.payment_status,
           status: 'active',
           supabase_project_ref: newOrg.supabase_url.match(/https:\/\/(.*)\.supabase\.co/)?.[1] || ''
         });
@@ -197,6 +201,7 @@ const Organizations: React.FC = () => {
         slug: '',
         country: 'India',
         plan: 'trial',
+        payment_status: 'trialing',
         supabase_url: '',
         supabase_anon_key: ''
       });
@@ -237,6 +242,21 @@ const Organizations: React.FC = () => {
     }
   };
 
+  const getPaymentStatusBadge = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600';
+      case 'trialing':
+        return 'bg-amber-500/10 border border-amber-500/20 text-amber-600';
+      case 'unpaid':
+        return 'bg-red-500/10 border border-red-500/20 text-red-600';
+      case 'overdue':
+        return 'bg-rose-500/10 border border-rose-500/20 text-rose-600';
+      default:
+        return 'bg-gray-500/10 border border-gray-500/20 text-gray-600';
+    }
+  };
+
   const filteredOrgs = orgs.filter(o => 
     o.name.toLowerCase().includes(search.toLowerCase()) || 
     o.slug.toLowerCase().includes(search.toLowerCase())
@@ -258,6 +278,7 @@ const Organizations: React.FC = () => {
               slug: '',
               country: 'India',
               plan: 'trial',
+              payment_status: 'trialing',
               supabase_url: '',
               supabase_anon_key: ''
             });
@@ -300,6 +321,7 @@ const Organizations: React.FC = () => {
                   <th className="p-5">Name & Code</th>
                   <th className="p-5">Project Ref / Endpoint</th>
                   <th className="p-5">Plan</th>
+                  <th className="p-5">Payment Status</th>
                   <th className="p-5">Status</th>
                   <th className="p-5">Country</th>
                   <th className="p-5">Created At</th>
@@ -332,6 +354,11 @@ const Organizations: React.FC = () => {
                     <td className="p-5">
                       <span className="px-2.5 py-0.5 bg-brand-orange/10 border border-brand-orange/20 text-brand-orange rounded-full text-xs font-bold uppercase tracking-wider">
                         {org.plan}
+                      </span>
+                    </td>
+                    <td className="p-5">
+                      <span className={`px-2.5 py-0.5 border rounded-full text-xs font-bold uppercase tracking-wider ${getPaymentStatusBadge(org.payment_status)}`}>
+                        {org.payment_status || 'trialing'}
                       </span>
                     </td>
                     <td className="p-5">
@@ -422,7 +449,7 @@ const Organizations: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-600">Billing Plan</label>
                   <select
@@ -434,6 +461,20 @@ const Organizations: React.FC = () => {
                     <option value="starter">Starter Plan</option>
                     <option value="pro">Pro Plan</option>
                     <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-600">Payment Status</label>
+                  <select
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm text-brand-navy outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all"
+                    value={newOrg.payment_status}
+                    onChange={(e) => setNewOrg({ ...newOrg, payment_status: e.target.value as any })}
+                  >
+                    <option value="trialing">Trialing</option>
+                    <option value="paid">Paid</option>
+                    <option value="unpaid">Unpaid</option>
+                    <option value="overdue">Overdue</option>
                   </select>
                 </div>
 
@@ -575,6 +616,12 @@ const Organizations: React.FC = () => {
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500 font-bold">Billing Plan:</span>
                     <span className="font-bold text-brand-orange uppercase">{selectedOrgStats.org.plan}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500 font-bold">Payment Status:</span>
+                    <span className={`px-2 py-0.5 border rounded-full text-[10px] font-bold uppercase tracking-wider ${getPaymentStatusBadge(selectedOrgStats.org.payment_status)}`}>
+                      {selectedOrgStats.org.payment_status || 'trialing'}
+                    </span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500 font-bold">Country / Region:</span>
